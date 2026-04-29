@@ -1,0 +1,9 @@
+.DS_Store
+tree_risk_map_files/
+*.R
+台北市行道樹資料.csv
+tree_integrated.csv
+tree_health.csv
+protected_trees_wgs84.csv
+台北市受保護樹木.csv
+台北市樹穴資料.csv

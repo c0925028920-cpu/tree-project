@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>台北市路樹倒塌風險查詢平台</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── 氣象警告橫幅 ── */
+    #weather-alert {
+      display: none;
+      background: linear-gradient(90deg, #b91c1c, #dc2626);
+      color: #fff;
+      text-align: center;
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      animation: alertPulse 2s ease-in-out infinite;
+      z-index: 3000;
+      flex-shrink: 0;
+    }
+    #weather-alert.active { display: block; }
+    @keyframes alertPulse {
+      0%, 100% { background: linear-gradient(90deg, #b91c1c, #dc2626); }
+      50%       { background: linear-gradient(90deg, #7f1d1d, #b91c1c); }
+    }
+
+    /* ── 頂部導覽列 ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #161b22, #0d1117);
+      border-bottom: 1px solid rgba(100, 200, 255, 0.15);
+      flex-shrink: 0;
+      z-index: 2000;
+    }
+    #header h1 { font-size: 18px; font-weight: 700; color: #cae8ff; letter-spacing: 0.5px; }
+
+    /* 天氣小卡 */
+    #weather-widget {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 7px 16px;
+      min-width: 210px;
+    }
+    #weather-icon { font-size: 30px; line-height: 1; }
+    #weather-temp { font-size: 17px; font-weight: 700; color: #fff; }
+    #weather-desc { font-size: 12px; color: #79c0ff; margin-top: 2px; }
+
+    /* ── 地圖區域 ── */
+    #map-container { flex: 1; position: relative; overflow: hidden; }
+    #map { width: 100%; height: 100%; }
+
+    /* ── 載入遮罩 ── */
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: rgba(13, 17, 23, 0.85);
+      z-index: 1500;
+    }
+    #loading.hidden { display: none; }
+    .spinner {
+      width: 42px; height: 42px;
+      border: 4px solid rgba(100,200,255,0.2);
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    #loading-msg { font-size: 14px; color: #79c0ff; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 浮動面板共用 ── */
+    .panel {
+      position: absolute;
+      background: rgba(13, 17, 23, 0.92);
+      border: 1px solid rgba(100,200,255,0.18);
+      border-radius: 12px;
+      padding: 14px 18px;
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+    }
+    .panel-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      color: #79c0ff; text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    /* 統計面板 */
+    #stats { top: 16px; left: 16px; min-width: 155px; }
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; padding: 4px 0; gap: 14px;
+    }
+    .stat-row + .stat-row { border-top: 1px solid rgba(255,255,255,0.06); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+    .cnt { font-weight: 700; font-size: 15px; }
+    .c-high  { color: #f85149; } .dot-high  { background: #f85149; }
+    .c-mid   { color: #e3b341; } .dot-mid   { background: #e3b341; }
+    .c-low   { color: #3fb950; } .dot-low   { background: #3fb950; }
+    .c-none  { color: #6e7681; } .dot-none  { background: #6e7681; }
+    .c-total { color: #cae8ff; }
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 6px 0; }
+
+    /* 篩選面板 */
+    #filter-panel { top: 16px; right: 16px; min-width: 175px; }
+    #filter-panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
+    #filter-panel input[type=checkbox] { accent-color: #58a6ff; width: 14px; height: 14px; cursor: pointer; }
+    #filter-panel select {
+      width: 100%; margin-top: 8px; padding: 5px 8px; border-radius: 6px;
+      background: rgba(255,255,255,0.08); color: #e6edf3;
+      border: 1px solid rgba(255,255,255,0.2); font-size: 13px;
+    }
+    #filter-panel select option { background: #161b22; }
+
+    /* 圖例面板 */
+    #legend { bottom: 30px; left: 16px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+    .legend-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
+
+    /* ── Leaflet popup 覆蓋 ── */
+    .leaflet-popup-content-wrapper {
+      background: #161b22;
+      color: #e6edf3;
+      border: 1px solid rgba(100,200,255,0.25);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .leaflet-popup-content { margin: 14px 16px; min-width: 230px; }
+    .leaflet-popup-tip-container { display: none; }
+
+    .pop-head { font-size: 15px; font-weight: 700; color: #58a6ff; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+    .pop-row  { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; gap: 16px; }
+    .pop-lbl  { color: #8b949e; white-space: nowrap; }
+    .pop-val  { font-weight: 600; text-align: right; word-break: break-all; }
+
+    .risk-bar-wrap { margin-top: 10px; }
+    .risk-bar-bg   { background: rgba(255,255,255,0.08); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 4px; }
+    .risk-bar-fill { height: 100%; border-radius: 4px; }
+
+    .risk-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 10px; }
+    .badge-high { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid #f85149; }
+    .badge-mid  { background: rgba(227,179,65,0.15); color: #e3b341; border: 1px solid #e3b341; }
+    .badge-low  { background: rgba(63,185,80,0.15);  color: #3fb950; border: 1px solid #3fb950; }
+    .badge-none { background: rgba(110,118,129,0.15); color: #6e7681; border: 1px solid #6e7681; }
+
+    /* ── 路線查詢按鈕（header） ── */
+    #btn-route {
+      background: rgba(88,166,255,0.1);
+      border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 8px;
+      color: #58a6ff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      margin-right: 12px;
+      transition: background 0.2s;
+    }
+    #btn-route:hover  { background: rgba(88,166,255,0.2); }
+    #btn-route.active { background: rgba(88,166,255,0.22); border-color: #58a6ff; }
+
+    /* ── 路線側欄 ── */
+    #route-sidebar {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 296px;
+      background: rgba(10,13,20,0.97);
+      border-right: 1px solid rgba(100,200,255,0.15);
+      backdrop-filter: blur(8px);
+      z-index: 1200;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform 0.28s ease;
+    }
+    #route-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
+
+    .rs-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 14px; font-weight: 700; color: #cae8ff;
+      flex-shrink: 0;
+    }
+    .rs-close {
+      background: none; border: none; color: #8b949e;
+      font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+    }
+    .rs-close:hover { color: #e6edf3; background: rgba(255,255,255,0.08); }
+
+    .rs-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+    .rs-body::-webkit-scrollbar { width: 3px; }
+    .rs-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    .rs-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      color: #79c0ff; text-transform: uppercase; margin-bottom: 5px; display: block;
+    }
+    .rs-input-wrap { position: relative; margin-bottom: 4px; }
+    .rs-input-wrap input {
+      width: 100%; padding: 8px 11px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 8px; color: #e6edf3; font-size: 13px; outline: none;
+    }
+    .rs-input-wrap input:focus { border-color: #58a6ff; }
+    .rs-input-wrap input::placeholder { color: #3d444d; }
+    .rs-status { font-size: 11px; color: #79c0ff; min-height: 14px; margin-bottom: 8px; }
+    .rs-err    { color: #f85149; }
+
+    /* 建議下拉 */
+    .rs-suggestions {
+      position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+      background: #161b22; border: 1px solid rgba(100,200,255,0.18);
+      border-radius: 8px; z-index: 20; max-height: 150px; overflow-y: auto;
+    }
+    .rs-sug-item {
+      padding: 8px 11px; font-size: 12px; color: #e6edf3; cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rs-sug-item:last-child { border-bottom: none; }
+    .rs-sug-item:hover { background: rgba(88,166,255,0.1); }
+
+    /* 步行 / 開車 */
+    .rs-mode { display: flex; gap: 6px; margin: 10px 0 14px; }
+    .rs-mode label {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      gap: 5px; padding: 7px; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s;
+    }
+    .rs-mode input[type=radio] { display: none; }
+    .rs-mode label:has(input:checked) {
+      background: rgba(88,166,255,0.14); border-color: #58a6ff; color: #58a6ff;
+    }
+
+    /* 按鈕 */
+    .rs-btn {
+      width: 100%; padding: 9px; border-radius: 8px; border: none;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      margin-bottom: 6px; transition: opacity 0.2s;
+    }
+    .rs-btn:hover:not(:disabled) { opacity: 0.82; }
+    .rs-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .rs-btn-primary   { background: #1f6feb; color: #fff; }
+    .rs-btn-secondary { background: rgba(255,255,255,0.07); color: #cae8ff; }
+
+    .rs-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 12px 0; }
+
+    /* 路線資訊 */
+    .rs-info-row {
+      display: flex; justify-content: space-between;
+      font-size: 13px; padding: 3px 0; color: #8b949e;
+    }
+    .rs-info-val { color: #e6edf3; font-weight: 600; }
+
+    /* 風險摘要條 */
+    .rs-risk-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border-radius: 8px; margin-bottom: 5px; font-size: 13px;
+    }
+    .rs-risk-high { background: rgba(248,81,73,0.1); }
+    .rs-risk-mid  { background: rgba(227,179,65,0.1); }
+    .rs-risk-low  { background: rgba(63,185,80,0.1);  }
+    .rs-risk-cnt  { font-weight: 700; font-size: 17px; }
+
+    /* 高風險樹木清單 */
+    .rs-tree-item {
+      padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      cursor: pointer; transition: background 0.15s;
+    }
+    .rs-tree-item:hover { background: rgba(88,166,255,0.07); border-color: rgba(88,166,255,0.2); }
+    .rs-tree-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .rs-tree-addr { font-size: 11px; color: #8b949e; }
+    .rs-tree-score { font-size: 12px; font-weight: 700; float: right; margin-top: 1px; }
+  </style>
+</head>
+<body>
+
+  <!-- 氣象警告橫幅 -->
+  <div id="weather-alert">
+    ⚠️ 氣象警告：<span id="alert-msg"></span>，請注意路樹倒塌風險，外出請多留意！
+  </div>
+
+  <!-- 頂部導覽列 -->
+  <div id="header">
+    <h1>🌳 台北市路樹倒塌風險查詢平台</h1>
+    <button id="btn-route" onclick="toggleRouteSidebar()">🗺️ 路線規劃</button>
+    <div id="weather-widget">
+      <div id="weather-icon">🌤️</div>
+      <div>
+        <div id="weather-temp">載入中...</div>
+        <div id="weather-desc">台北市即時天氣</div>
+        <div id="weather-location" style="font-size:11px;color:#58a6ff;margin-top:2px;min-height:14px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 地圖區域 -->
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- 載入遮罩 -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div id="loading-msg">載入行道樹資料中...</div>
+    </div>
+
+    <!-- 統計面板 -->
+    <div id="stats" class="panel">
+      <div class="panel-title">風險統計</div>
+      <div class="stat-row">
+        <span><span class="dot dot-high"></span><span class="c-high">高/重風險</span></span>
+        <span class="cnt c-high" id="cnt-high">—</span>
+      </div>
+      <div class="stat-row">
+        <span><span class="dot dot-mid"></span><span class="c-mid">中風險</span></span>
+        <span class="cnt c-mid" id="cnt-mid">—</span>
+      </div>
+      <div class="stat-row">
+        <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
+        <span class="cnt c-low" id="cnt-low">—</span>
+      </div>
+      <hr class="divider">
+      <div class="stat-row">
+        <span class="c-total">總計</span>
+        <span class="cnt c-total" id="cnt-total">—</span>
+      </div>
+    </div>
+
+    <!-- 篩選面板 -->
+    <div id="filter-panel" class="panel">
+      <div class="panel-title">顯示篩選</div>
+      <label><input type="checkbox" id="chk-high" checked> <span class="c-high">高/重風險</span></label>
+      <label><input type="checkbox" id="chk-mid"  checked> <span class="c-mid">中風險</span></label>
+      <label><input type="checkbox" id="chk-low"  checked> <span class="c-low">低/D級</span></label>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:6px 0">
+      <label><input type="checkbox" id="chk-brownrot" checked> <span style="color:#a371f7">褐根病通報</span></label>
+      <label><input type="checkbox" id="chk-otherdmg"> <span style="color:#6e7681">其他病害通報</span></label>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:6px 0">
+      <label><input type="checkbox" id="chk-protected" checked> <span style="color:#f0a500">列管保護老樹</span></label>
+      <label><input type="checkbox" id="chk-pit"> <span style="color:#4a9eff">樹穴位置</span></label>
+      <select id="sel-dist">
+        <option value="">所有行政區</option>
+      </select>
+    </div>
+
+    <!-- 路線規劃側欄 -->
+    <div id="route-sidebar">
+      <div class="rs-head">
+        <span>🗺️ 路線規劃</span>
+        <button class="rs-close" onclick="toggleRouteSidebar()">✕</button>
+      </div>
+      <div class="rs-body">
+
+        <label class="rs-label">出發地</label>
+        <div class="rs-input-wrap">
+          <input id="inp-start" type="text" placeholder="輸入地址或地名" autocomplete="off">
+        </div>
+        <div class="rs-status" id="start-status"></div>
+
+        <label class="rs-label">目的地</label>
+        <div class="rs-input-wrap">
+          <input id="inp-end" type="text" placeholder="輸入地址或地名" autocomplete="off">
+        </div>
+        <div class="rs-status" id="end-status"></div>
+
+        <div class="rs-mode">
+          <label><input type="radio" name="tmode" value="foot" checked>🚶 步行</label>
+          <label><input type="radio" name="tmode" value="driving">🚗 開車</label>
+          <label><input type="radio" name="tmode" value="bike">🚲 騎車</label>
+        </div>
+
+        <button id="btn-search-route" class="rs-btn rs-btn-primary"
+                onclick="handleRouteSearch()">查詢路線</button>
+        <button id="btn-clear-route"  class="rs-btn rs-btn-secondary"
+                onclick="clearRoute()" style="display:none">清除路線</button>
+
+        <div id="route-result"></div>
+      </div>
+    </div>
+
+    <!-- 圖例面板 -->
+    <div id="legend" class="panel">
+      <div class="panel-title">風險等級（官方健檢）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>高/重風險</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>中風險</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>低/D級風險</div>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:8px 0">
+      <div class="legend-item"><div class="legend-dot" style="background:#a371f7;border-radius:3px"></div>褐根病通報</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6e7681;border-radius:3px"></div>其他病害通報</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f0a500;border-radius:2px"></div>列管保護老樹</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4a9eff;border-radius:2px"></div>樹穴位置</div>
+      <div style="margin-top:10px; font-size:11px; color:#8b949e; line-height:1.6">
+        資料來源：台北市政府工務局<br>公園路燈工程管理處<br>林業試驗所林木疫情監測系統
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <script>
+  'use strict';
+
+  // ════════════════════════════════════════
+  // 設定區
+  // ════════════════════════════════════════
+  const CONFIG = {
+    cwaKey        : 'CWA-57F7D6CF-9096-4C81-B254-A0CCA6798ADC',
+    stationId     : '466920',   // 臺北氣象站
+    taipeiGeocode : 63,
+    csvPath          : 'tree_integrated_wgs84.csv',   // ★ 整合後主表（含 WGS84 座標）
+    brownrotPath     : 'brownrot_taipei.csv',          // 褐根病通報案例
+    protectedPath    : 'protected_standalone.csv',     // 獨立保護老樹（未在主表中）
+    pitPath          : 'tree_pits_wgs84.csv',          // 樹穴資料（已轉 WGS84）
+    windAlert     : 10.8,       // m/s（蒲福 6 級以上）
+  };
+
+  // ════════════════════════════════════════
+  // 風險等級判定（依官方 health_風險結果 欄位）
+  // ════════════════════════════════════════
+  /**
+   * 回傳 'high' | 'mid' | 'low' | 'none'
+   *
+   * health_風險結果 對照：
+   *   高、重        → high（紅）
+   *   中            → mid（橘）
+   *   低、D級、
+   *   低風險、極低  → low（綠）
+   *   NA、空白、未配對 → none（灰，尚無健檢資料）
+   */
+  function getRiskLevel(row) {
+    const r = (row['health_風險結果'] || '').trim();
+    if (r === '高' || r === '重')                              return 'high';
+    if (r === '中')                                            return 'mid';
+    if (r === '低' || r === 'D級' || r === '低風險' || r === '極低風險') return 'low';
+    return 'none';
+  }
+
+  const RISK_META = {
+    high : { label: '高/重風險', color: '#f85149', radius: 8,  badgeClass: 'badge-high' },
+    mid  : { label: '中風險',   color: '#e3b341', radius: 6,  badgeClass: 'badge-mid'  },
+    low  : { label: '低/D級',   color: '#3fb950', radius: 4,  badgeClass: 'badge-low'  },
+    none : { label: '無健檢資料', color: '#6e7681', radius: 3,  badgeClass: 'badge-none' },
+  };
+
+  // ════════════════════════════════════════
+  // 地圖初始化
+  // ════════════════════════════════════════
+  const map = L.map('map', { center: [25.05, 121.55], zoom: 13 });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // ════════════════════════════════════════
+  // 標記管理
+  // ════════════════════════════════════════
+  const allMarkers = []; // { marker, level, dist, latlng, treeData }
+
+  /** 健檢扣分轉 0–100 風險進度條（扣分為負，越低越危險） */
+  function deductionToBar(val) {
+    const n = parseFloat(val);
+    if (!isFinite(n) || val === 'NA' || val === '') return null;
+    // 範圍 -62 ~ 0，轉成 0~100（扣越多 = 條越長）
+    return Math.min(Math.round(Math.abs(n) / 62 * 100), 100);
+  }
+
+  /** 樹木狀況代碼轉中文 */
+  function statusLabel(code) {
+    if (code === 'P') return '正常';
+    if (code === 'I') return '異常';
+    return '—';
+  }
+
+  function buildPopupHtml(row, level) {
+    const meta       = RISK_META[level];
+    const barPct     = deductionToBar(row['health_健檢扣分']);
+    const riskText   = row['health_風險結果'] || '未做健檢';
+    const factor     = row['health_健檢關鍵因子'];
+    const statusCode = row['health_樹木狀況'];
+    const diameter   = parseFloat(row['diameter']);
+    const height     = parseFloat(row['tree_height']);
+    const isProt     = String(row['is_protected']).toUpperCase() === 'TRUE';
+
+    return `
+      <div class="pop-head">🌳 ${row['tree_type'] || '未知樹種'}${isProt ? ' <span style="color:#f0a500;font-size:12px">⭐ 列管保護</span>' : ''}</div>
+      <div class="pop-row">
+        <span class="pop-lbl">樹木編號</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${row['tree_id'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">行政區</span>
+        <span class="pop-val">${row['dist'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">道路</span>
+        <span class="pop-val">${row['region'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">胸徑</span>
+        <span class="pop-val">${isFinite(diameter) ? diameter.toFixed(1) + ' cm' : '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">樹高</span>
+        <span class="pop-val">${isFinite(height) ? height.toFixed(1) + ' m' : '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">樹木狀況</span>
+        <span class="pop-val">${statusLabel(statusCode)}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">官方風險等級</span>
+        <span class="pop-val" style="color:${meta.color}">${riskText}</span>
+      </div>
+      ${barPct !== null ? `
+      <div class="risk-bar-wrap">
+        <div class="pop-row">
+          <span class="pop-lbl">健檢扣分</span>
+          <span class="pop-val" style="color:${meta.color}">${row['health_健檢扣分']} 分</span>
+        </div>
+        <div class="risk-bar-bg">
+          <div class="risk-bar-fill" style="width:${barPct}%; background:${meta.color}"></div>
+        </div>
+      </div>` : ''}
+      ${factor && factor !== 'NA' ? `
+      <div class="pop-row" style="margin-top:8px;align-items:flex-start">
+        <span class="pop-lbl">關鍵因子</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e;text-align:right">${factor}</span>
+      </div>` : ''}
+      ${isProt ? `
+      <hr style="border:none;border-top:1px solid rgba(240,165,0,0.2);margin:8px 0">
+      <div style="font-size:11px;color:#f0a500;font-weight:700;margin-bottom:4px">⭐ 列管保護樹木資訊</div>
+      <div class="pop-row">
+        <span class="pop-lbl">保護編號</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">#${row['prot_id'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">胸徑</span>
+        <span class="pop-val">${row['prot_diam_m'] || '—'} m</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">管理單位</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${(row['prot_mgr'] || '—').substring(0,20)}</span>
+      </div>` : ''}
+      <div style="text-align:center;margin-top:8px">
+        <span class="risk-badge ${meta.badgeClass}">${meta.label}</span>
+        ${isProt ? '<span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500;margin-left:4px">列管老樹</span>' : ''}
+      </div>
+    `;
+  }
+
+  // ════════════════════════════════════════
+  // CSV 載入與渲染
+  // ════════════════════════════════════════
+  const distSet = new Set();
+
+  function loadTrees() {
+    Papa.parse(CONFIG.csvPath, {
+      download       : true,
+      header         : true,
+      skipEmptyLines : true,
+      encoding       : 'UTF-8',
+
+      complete(results) {
+        const counts = { high: 0, mid: 0, low: 0 };
+
+        results.data.forEach(row => {
+          const lat = parseFloat(row['lat']);
+          const lng = parseFloat(row['lng']);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+
+          const level = getRiskLevel(row);
+          const dist  = row['dist'] || '未知';
+          const meta  = RISK_META[level];
+
+          if (level !== 'none') {
+            counts[level]++;
+            distSet.add(dist);
+          }
+
+          const marker = L.circleMarker([lat, lng], {
+            radius      : meta.radius,
+            fillColor   : meta.color,
+            color       : 'rgba(255,255,255,0.6)',
+            weight      : 1,
+            fillOpacity : 0.85,
+          }).bindPopup(buildPopupHtml(row, level), { maxWidth: 290 });
+
+          // 無健檢資料：載入 allMarkers 供未來功能使用，但預設不加入地圖
+          if (level !== 'none') marker.addTo(map);
+
+          allMarkers.push({ marker, level, dist, latlng: [lat, lng], treeData: row });
+        });
+
+        // 更新統計
+        const total = counts.high + counts.mid + counts.low;
+        document.getElementById('cnt-high').textContent  = counts.high.toLocaleString();
+        document.getElementById('cnt-mid').textContent   = counts.mid.toLocaleString();
+        document.getElementById('cnt-low').textContent   = counts.low.toLocaleString();
+        document.getElementById('cnt-total').textContent = total.toLocaleString();
+
+        // 行政區下拉
+        const sel = document.getElementById('sel-dist');
+        [...distSet].sort().forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d; opt.textContent = d;
+          sel.appendChild(opt);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+      },
+
+      error(err) {
+        document.getElementById('loading-msg').innerHTML =
+          `<span style="color:#f85149">⚠️ 無法載入 CSV<br><small>${err.message || err}</small></span>`;
+      },
+    });
+  }
+
+  // ════════════════════════════════════════
+  // 篩選控制
+  // ════════════════════════════════════════
+  function applyFilter() {
+    const showHigh = document.getElementById('chk-high').checked;
+    const showMid  = document.getElementById('chk-mid').checked;
+    const showLow  = document.getElementById('chk-low').checked;
+    const selDist  = document.getElementById('sel-dist').value;
+
+    allMarkers.forEach(({ marker, level, dist }) => {
+      const levelOk = (level === 'high' && showHigh) ||
+                      (level === 'mid'  && showMid)  ||
+                      (level === 'low'  && showLow);
+      const distOk  = !selDist || dist === selDist;
+
+      if (levelOk && distOk) marker.addTo(map);
+      else                   marker.remove();
+    });
+  }
+
+  ['chk-high','chk-mid','chk-low'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyFilter);
+  });
+
+  document.getElementById('sel-dist').addEventListener('change', function () {
+    applyFilter();
+    updateWeatherForDistrict(this.value);
+  });
+
+  // ════════════════════════════════════════
+  // 天氣（中央氣象署 CWA）— 支援行政區切換
+  // ════════════════════════════════════════
+  const CWA_BASE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
+  const CWA_KEY  = CONFIG.cwaKey;
+
+  let cityWeatherCache   = null;
+  let distWeatherCache   = {};
+  let activeHazardsCache = [];
+
+  function wxToEmoji(wx) {
+    if (!wx || wx === '-' || wx === '-99') return '🌤️';
+    if (/雷/.test(wx))              return '⛈️';
+    if (/大雨|豪雨|暴雨/.test(wx)) return '🌧️';
+    if (/陣雨|雨/.test(wx))        return '🌦️';
+    if (/陰/.test(wx))              return '☁️';
+    if (/多雲/.test(wx))            return '⛅';
+    if (/晴/.test(wx))              return '☀️';
+    if (/霧|靄/.test(wx))           return '🌫️';
+    return '🌤️';
+  }
+
+  function cwaNum(val) {
+    const n = parseFloat(val);
+    return (isFinite(n) && n !== -99) ? n : null;
+  }
+
+  const avg     = arr => { const v = arr.filter(x => x !== null); return v.length ? v.reduce((a,b) => a+b,0)/v.length : null; };
+  const safeMax = arr => { const v = arr.filter(x => x !== null); return v.length ? Math.max(...v) : null; };
+  const mode    = arr => {
+    if (!arr.length) return null;
+    const cnt = {};
+    arr.forEach(x => { cnt[x] = (cnt[x] || 0) + 1; });
+    return Object.entries(cnt).sort((a,b) => b[1]-a[1])[0][0];
+  };
+
+  function displayWeather({ weather, temp, humid, wind, gust }, locationLabel) {
+    const fmt  = (v, d=1) => v !== null ? (+v).toFixed(d) : '—';
+    const fmtI = v => v !== null ? Math.round(v) : '—';
+    document.getElementById('weather-icon').textContent = wxToEmoji(weather);
+    document.getElementById('weather-temp').textContent = `${fmt(temp)}°C　💧${fmtI(humid)}%`;
+    document.getElementById('weather-desc').textContent = `${weather || '—'}　💨${fmt(wind)} m/s`;
+    document.getElementById('weather-location').textContent = locationLabel ? `📍 ${locationLabel}` : '';
+  }
+
+  function checkAlerts({ weather, wind, gust }) {
+    const banner  = document.getElementById('weather-alert');
+    const isHazard = activeHazardsCache.length > 0;
+    const isWind   = (wind !== null && wind >= CONFIG.windAlert) || (gust !== null && gust >= 15);
+    const isHeavy  = /大雨|豪雨|暴雨/.test(weather || '');
+
+    if (isHazard || isWind || isHeavy) {
+      const msgs = [];
+      if (isHazard) {
+        const names = activeHazardsCache.map(h => h.info?.phenomena).filter(Boolean).join('、');
+        msgs.push(names || '天氣警報');
+      }
+      if (isWind)  msgs.push(`強風（${gust ?? wind} m/s）`);
+      if (isHeavy) msgs.push(weather);
+      document.getElementById('alert-msg').textContent = msgs.join('、');
+      banner.classList.add('active');
+    } else {
+      banner.classList.remove('active');
+    }
+  }
+
+  async function loadCityWeather() {
+    const res  = await fetch(
+      `${CWA_BASE}/O-A0001-001?Authorization=${CWA_KEY}&StationId=${CONFIG.stationId}&format=JSON`
+    );
+    if (!res.ok) throw new Error(`觀測 API ${res.status}`);
+    const data = await res.json();
+    const st   = data.records.Station[0];
+    const we   = st.WeatherElement;
+
+    cityWeatherCache = {
+      weather : we.Weather || '—',
+      temp    : cwaNum(we.AirTemperature),
+      humid   : cwaNum(we.RelativeHumidity),
+      wind    : cwaNum(we.WindSpeed),
+      gust    : cwaNum(we.GustInfo?.PeakGustSpeed),
+      precip  : cwaNum(we.Now?.Precipitation ?? we.Precipitation),
+    };
+    return cityWeatherCache;
+  }
+
+  async function loadDistrictWeatherCache() {
+    const res = await fetch(
+      `${CWA_BASE}/O-A0003-001?Authorization=${CWA_KEY}` +
+      `&CountyName=${encodeURIComponent('臺北市')}&format=JSON`
+    );
+    if (!res.ok) return;
+
+    const data     = await res.json();
+    const stations = data.records.Station ?? [];
+    const tmp      = {};
+
+    for (const st of stations) {
+      const town = (st.GeoInfo?.TownName ?? '').replace(/^臺北市/, '').trim();
+      if (!town) continue;
+      if (!tmp[town]) tmp[town] = { weathers: [], temps: [], humids: [], winds: [], gusts: [], precips: [] };
+      const we = st.WeatherElement;
+      const wx = we.Weather;
+      if (wx && wx !== '-99') tmp[town].weathers.push(wx);
+      const t = cwaNum(we.AirTemperature);         if (t !== null) tmp[town].temps.push(t);
+      const h = cwaNum(we.RelativeHumidity);       if (h !== null) tmp[town].humids.push(h);
+      const w = cwaNum(we.WindSpeed);              if (w !== null) tmp[town].winds.push(w);
+      const g = cwaNum(we.GustInfo?.PeakGustSpeed); if (g !== null) tmp[town].gusts.push(g);
+      const p = cwaNum(we.Now?.Precipitation);     if (p !== null) tmp[town].precips.push(p);
+    }
+
+    for (const [town, d] of Object.entries(tmp)) {
+      distWeatherCache[town] = {
+        weather : mode(d.weathers),
+        temp    : avg(d.temps),
+        humid   : avg(d.humids),
+        wind    : avg(d.winds),
+        gust    : safeMax(d.gusts),
+        precip  : safeMax(d.precips),
+        stCount : d.temps.length,
+      };
+    }
+  }
+
+  async function loadWarnings() {
+    try {
+      const res  = await fetch(`${CWA_BASE}/W-C0033-001?Authorization=${CWA_KEY}&format=JSON`);
+      const data = await res.json();
+      const entry = data.records?.location?.find(l => Number(l.geocode) === CONFIG.taipeiGeocode);
+      activeHazardsCache = entry?.hazardConditions?.hazards ?? [];
+    } catch { activeHazardsCache = []; }
+  }
+
+  async function loadWeather() {
+    try {
+      const [city] = await Promise.all([
+        loadCityWeather(),
+        loadWarnings(),
+        loadDistrictWeatherCache(),
+      ]);
+      displayWeather(city, '臺北市觀測站');
+      checkAlerts(city);
+    } catch (err) {
+      document.getElementById('weather-temp').textContent = '天氣載入失敗';
+      document.getElementById('weather-desc').textContent = err.message;
+    }
+  }
+
+  function updateWeatherForDistrict(dist) {
+    if (!dist) {
+      if (cityWeatherCache) { displayWeather(cityWeatherCache, '臺北市觀測站'); checkAlerts(cityWeatherCache); }
+      return;
+    }
+    const d = distWeatherCache[dist];
+    if (d) {
+      displayWeather(d, `${dist}（${d.stCount} 站平均）`);
+      checkAlerts(d);
+    } else {
+      document.getElementById('weather-location').textContent = `📍 ${dist}（資料載入中）`;
+    }
+  }
+
+  // ════════════════════════════════════════
+  // 路線查詢
+  // ════════════════════════════════════════
+  const ROUTE_BUFFER_M = 40;
+
+  let routeLayer  = null;
+  let startLatLng = null;
+  let endLatLng   = null;
+
+  function toggleRouteSidebar() {
+    const sidebar = document.getElementById('route-sidebar');
+    const btn     = document.getElementById('btn-route');
+    const isOpen  = sidebar.classList.toggle('open');
+    btn.classList.toggle('active', isOpen);
+    map.invalidateSize();
+  }
+
+  function setupGeoInput(inputId, statusId, onSelect) {
+    const input  = document.getElementById(inputId);
+    const status = document.getElementById(statusId);
+    let timer = null, sugEl = null;
+
+    const removeSug = () => { if (sugEl) { sugEl.remove(); sugEl = null; } };
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      removeSug();
+      if (input.value.length < 2) { status.textContent = ''; return; }
+      status.textContent = '搜尋中…';
+
+      timer = setTimeout(async () => {
+        const q   = input.value.includes('台北') || input.value.includes('臺北')
+                    ? input.value : `${input.value} 台北市`;
+        const url = `https://nominatim.openstreetmap.org/search?` +
+                    `q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=tw`;
+        try {
+          const res  = await fetch(url);
+          const data = await res.json();
+          status.textContent = '';
+          if (!data.length) { status.className = 'rs-status rs-err'; status.textContent = '找不到地址'; return; }
+          status.className = 'rs-status';
+
+          sugEl = document.createElement('div');
+          sugEl.className = 'rs-suggestions';
+          data.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'rs-sug-item';
+            item.textContent = r.display_name.split(',').slice(0, 3).join(',');
+            item.title       = r.display_name;
+            item.addEventListener('mousedown', e => {
+              e.preventDefault();
+              input.value = r.display_name.split(',')[0];
+              removeSug();
+              status.textContent = '✓ 已選取';
+              status.className   = 'rs-status';
+              onSelect([parseFloat(r.lat), parseFloat(r.lon)]);
+            });
+            sugEl.appendChild(item);
+          });
+          input.parentElement.appendChild(sugEl);
+        } catch {
+          status.className   = 'rs-status rs-err';
+          status.textContent = '搜尋失敗，請稍後再試';
+        }
+      }, 500);
+    });
+
+    document.addEventListener('click', e => { if (!input.contains(e.target)) removeSug(); });
+  }
+
+  async function queryOSRM(start, end, profile) {
+    const url = `https://router.project-osrm.org/route/v1/${profile}/` +
+                `${start[1]},${start[0]};${end[1]},${end[0]}` +
+                `?overview=full&geometries=geojson`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.code !== 'Ok') throw new Error('查無路線，請確認地點是否可到達');
+    return data.routes[0];
+  }
+
+  function drawRoute(geometry) {
+    if (routeLayer) routeLayer.remove();
+    routeLayer = L.geoJSON(geometry, {
+      style: { color: '#58a6ff', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
+    }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [60, 80] });
+  }
+
+  function ptSegDist(pLat, pLng, aLat, aLng, bLat, bLng) {
+    const cosLat = Math.cos((pLat + aLat) / 2 * Math.PI / 180);
+    const mLat   = 111320, mLng = 111320 * cosLat;
+    const px = (pLng - aLng) * mLng, py = (pLat - aLat) * mLat;
+    const bx = (bLng - aLng) * mLng, by = (bLat - aLat) * mLat;
+    const lenSq = bx * bx + by * by;
+    if (lenSq === 0) return Math.hypot(px, py);
+    const t = Math.max(0, Math.min(1, (px * bx + py * by) / lenSq));
+    return Math.hypot(px - t * bx, py - t * by);
+  }
+
+  function analyzeRouteRisk(coords) {
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    for (const [lng, lat] of coords) {
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+    }
+    const bufDeg = ROUTE_BUFFER_M / 111320 * 2;
+    const nearby = [];
+
+    for (const item of allMarkers) {
+      const [tLat, tLng] = item.latlng;
+      if (tLat < minLat - bufDeg || tLat > maxLat + bufDeg ||
+          tLng < minLng - bufDeg || tLng > maxLng + bufDeg) continue;
+
+      let minD = Infinity;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const [aLng, aLat] = coords[i];
+        const [bLng, bLat] = coords[i + 1];
+        const d = ptSegDist(tLat, tLng, aLat, aLng, bLat, bLng);
+        if (d < minD) minD = d;
+        if (minD < ROUTE_BUFFER_M) break;
+      }
+      if (minD <= ROUTE_BUFFER_M) nearby.push(item);
+    }
+    return nearby;
+  }
+
+  function applyRouteHighlight(nearbySet) {
+    allMarkers.forEach(item => {
+      const meta = RISK_META[item.level];
+      if (nearbySet.has(item)) {
+        item.marker.setStyle({ radius: meta.radius + 4, fillOpacity: 1, weight: 3, color: '#fff' });
+        item.marker.bringToFront();
+      } else {
+        item.marker.setStyle({ radius: meta.radius, fillOpacity: 0.1, weight: 0.5, color: 'rgba(255,255,255,0.15)' });
+      }
+    });
+  }
+
+  function resetHighlight() {
+    allMarkers.forEach(item => {
+      const meta = RISK_META[item.level];
+      item.marker.setStyle({
+        radius: meta.radius,
+        fillOpacity: 0.85,
+        weight: 1,
+        color: 'rgba(255,255,255,0.6)'
+      });
+    });
+  }
+
+  function renderRouteResult(route, nearby) {
+    const distKm = (route.distance / 1000).toFixed(1);
+    const tmode  = document.querySelector('input[name="tmode"]:checked').value;
+    const speed  = { foot: 5, driving: 40, bike: 15 }[tmode] ?? 5;
+    const mins   = Math.round(route.distance / 1000 / speed * 60);
+
+    const counts   = { high: 0, mid: 0, low: 0 };
+    nearby.forEach(t => { if (t.level !== 'none') counts[t.level]++; });
+    const highTrees = nearby.filter(t => t.level === 'high');
+    const modeLabel = { foot: '步行', driving: '開車', bike: '騎車' }[tmode];
+
+    document.getElementById('route-result').innerHTML = `
+      <hr class="rs-divider">
+      <div class="panel-title">路線資訊</div>
+      <div class="rs-info-row"><span>距離</span><span class="rs-info-val">${distKm} km</span></div>
+      <div class="rs-info-row"><span>${modeLabel}預估</span><span class="rs-info-val">${mins} 分鐘</span></div>
+
+      <hr class="rs-divider">
+      <div class="panel-title">沿路樹木風險（${ROUTE_BUFFER_M}m 範圍）</div>
+      <div class="rs-risk-row rs-risk-high">
+        <span><span class="dot dot-high"></span><span class="c-high">高/重風險</span></span>
+        <span class="rs-risk-cnt c-high">${counts.high}</span>
+      </div>
+      <div class="rs-risk-row rs-risk-mid">
+        <span><span class="dot dot-mid"></span><span class="c-mid">中風險</span></span>
+        <span class="rs-risk-cnt c-mid">${counts.mid}</span>
+      </div>
+      <div class="rs-risk-row rs-risk-low">
+        <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
+        <span class="rs-risk-cnt c-low">${counts.low}</span>
+      </div>
+
+      ${highTrees.length ? `
+        <hr class="rs-divider">
+        <div class="panel-title">高/重風險樹木（點擊定位）</div>
+        ${highTrees.map(t => {
+          const addr = `${t.treeData['dist'] || ''}${t.treeData['region'] || ''}`;
+          return `<div class="rs-tree-item" onclick="zoomToTree(${t.latlng[0]},${t.latlng[1]})">
+            <span class="rs-tree-score c-high">${t.treeData['health_風險結果'] || '高'}</span>
+            <div class="rs-tree-name">🌳 ${t.treeData['tree_type'] || '未知樹種'}</div>
+            <div class="rs-tree-addr">${addr}</div>
+          </div>`;
+        }).join('')}
+      ` : `<p style="font-size:13px;color:#3fb950;text-align:center;padding:12px 0">
+            ✅ 此路線沿途無高/重風險樹木
+           </p>`}
+    `;
+  }
+
+  function zoomToTree(lat, lng) {
+    map.setView([lat, lng], 17, { animate: true });
+    const item = allMarkers.find(m => m.latlng[0] === lat && m.latlng[1] === lng);
+    if (item) setTimeout(() => item.marker.openPopup(), 350);
+  }
+
+  function clearRoute() {
+    if (routeLayer) { routeLayer.remove(); routeLayer = null; }
+    resetHighlight();
+    startLatLng = endLatLng = null;
+    document.getElementById('route-result').innerHTML       = '';
+    document.getElementById('btn-clear-route').style.display = 'none';
+    document.getElementById('start-status').textContent    = '';
+    document.getElementById('end-status').textContent      = '';
+    document.getElementById('inp-start').value             = '';
+    document.getElementById('inp-end').value               = '';
+  }
+
+  async function handleRouteSearch() {
+    const startSt = document.getElementById('start-status');
+    const endSt   = document.getElementById('end-status');
+    if (!startLatLng) { startSt.className = 'rs-status rs-err'; startSt.textContent = '請選擇出發地'; return; }
+    if (!endLatLng)   { endSt.className   = 'rs-status rs-err'; endSt.textContent   = '請選擇目的地'; return; }
+
+    const btn = document.getElementById('btn-search-route');
+    btn.disabled = true; btn.textContent = '查詢中…';
+
+    try {
+      const tmode = document.querySelector('input[name="tmode"]:checked').value;
+      const route = await queryOSRM(startLatLng, endLatLng, tmode);
+
+      drawRoute(route.geometry);
+      const nearby    = analyzeRouteRisk(route.geometry.coordinates);
+      const nearbySet = new Set(nearby);
+      applyRouteHighlight(nearbySet);
+      renderRouteResult(route, nearby);
+      document.getElementById('btn-clear-route').style.display = '';
+
+    } catch (err) {
+      endSt.className   = 'rs-status rs-err';
+      endSt.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = '查詢路線';
+    }
+  }
+
+  function initRoutePanel() {
+    setupGeoInput('inp-start', 'start-status', latlng => { startLatLng = latlng; });
+    setupGeoInput('inp-end',   'end-status',   latlng => { endLatLng   = latlng; });
+  }
+
+  // ════════════════════════════════════════
+  // 褐根病通報圖層
+  // ════════════════════════════════════════
+  const brownrotMarkers = []; // { marker, isBrownrot }
+
+  function buildDmgPopup(row) {
+    const isBr   = row['commonDamageName'] === '褐根病';
+    const color  = isBr ? '#a371f7' : '#6e7681';
+    const date   = row['date'] || '—';
+    const name   = row['commonDamageName'] || '—';
+    const caseNo = row['caseNumber'] || '—';
+    return `
+      <div class="pop-head" style="color:${color}">⚠️ ${name}</div>
+      <div class="pop-row">
+        <span class="pop-lbl">通報日期</span>
+        <span class="pop-val">${date}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">案件編號</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${caseNo}</span>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <span class="risk-badge" style="background:rgba(${isBr ? '163,113,247' : '110,118,129'},0.15);color:${color};border:1px solid ${color}">
+          ${isBr ? '褐根病通報' : '病害通報'}
+        </span>
+      </div>
+    `;
+  }
+
+  function loadBrownrot() {
+    Papa.parse(CONFIG.brownrotPath, {
+      download       : true,
+      header         : true,
+      skipEmptyLines : true,
+      encoding       : 'UTF-8',
+
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['lat']);
+          const lng = parseFloat(row['lon']);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+
+          const isBrownrot = row['commonDamageName'] === '褐根病';
+          const color      = isBrownrot ? '#a371f7' : '#6e7681';
+
+          const marker = L.circleMarker([lat, lng], {
+            radius      : 5,
+            fillColor   : color,
+            color       : 'rgba(255,255,255,0.5)',
+            weight      : 1,
+            fillOpacity : 0.75,
+          }).bindPopup(buildDmgPopup(row), { maxWidth: 260 });
+
+          // 預設：褐根病顯示，其他病害隱藏
+          if (isBrownrot) marker.addTo(map);
+
+          brownrotMarkers.push({ marker, isBrownrot });
+        });
+      },
+
+      error(err) {
+        console.warn('褐根病資料載入失敗', err);
+      },
+    });
+  }
+
+  function applyBrownrotFilter() {
+    const showBr  = document.getElementById('chk-brownrot').checked;
+    const showOth = document.getElementById('chk-otherdmg').checked;
+    brownrotMarkers.forEach(({ marker, isBrownrot }) => {
+      if ((isBrownrot && showBr) || (!isBrownrot && showOth)) marker.addTo(map);
+      else marker.remove();
+    });
+  }
+
+  document.getElementById('chk-brownrot').addEventListener('change', applyBrownrotFilter);
+  document.getElementById('chk-otherdmg').addEventListener('change', applyBrownrotFilter);
+
+  // ════════════════════════════════════════
+  // 列管保護老樹圖層（獨立於主表的 2,994 棵）
+  // ════════════════════════════════════════
+  const protectedMarkers = [];
+
+  function buildProtectedPopup(row) {
+    return `
+      <div class="pop-head">⭐ ${row['樹種名稱'] || '未知樹種'} <span style="font-size:11px;color:#f0a500">列管保護</span></div>
+      ${row['樹種學名'] ? `<div style="font-size:11px;font-style:italic;color:#8b949e;margin:-4px 0 8px">${row['樹種學名']}</div>` : ''}
+      <div class="pop-row">
+        <span class="pop-lbl">保護編號</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">#${row['樹木編號'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">地址</span>
+        <span class="pop-val" style="font-size:11px;text-align:right">${(row['地址'] || '—').replace(/^臺北市/, '')}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">胸徑</span>
+        <span class="pop-val">${row['樹胸徑寬度公尺'] || '—'} m</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">胸圍</span>
+        <span class="pop-val">${row['樹胸圍長度公尺'] || '—'} m</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">地點類型</span>
+        <span class="pop-val">${row['地理位置名稱'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">管理單位</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${(row['管理單位'] || '—').substring(0, 20)}</span>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500">列管老樹</span>
+      </div>
+    `;
+  }
+
+  function loadProtectedTrees() {
+    Papa.parse(CONFIG.protectedPath, {
+      download: true, header: true, skipEmptyLines: true, encoding: 'UTF-8',
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['lat']);
+          const lng = parseFloat(row['lng']);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+
+          const marker = L.circleMarker([lat, lng], {
+            radius      : 6,
+            fillColor   : '#f0a500',
+            color       : 'rgba(255,255,255,0.6)',
+            weight      : 1.5,
+            fillOpacity : 0.85,
+          }).bindPopup(buildProtectedPopup(row), { maxWidth: 280 });
+
+          marker.addTo(map);
+          protectedMarkers.push(marker);
+        });
+      },
+      error(err) { console.warn('保護老樹資料載入失敗', err); },
+    });
+  }
+
+  function applyProtectedFilter() {
+    const show = document.getElementById('chk-protected').checked;
+    protectedMarkers.forEach(m => show ? m.addTo(map) : m.remove());
+  }
+  document.getElementById('chk-protected').addEventListener('change', applyProtectedFilter);
+
+  // ════════════════════════════════════════
+  // 樹穴圖層
+  // ════════════════════════════════════════
+  const pitMarkers = [];
+
+  function buildPitPopup(row) {
+    return `
+      <div class="pop-head" style="color:#4a9eff">🕳️ 樹穴</div>
+      <div class="pop-row">
+        <span class="pop-lbl">類型</span>
+        <span class="pop-val">${row['ShapeType'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">長度</span>
+        <span class="pop-val">${row['Length'] ? parseFloat(row['Length']).toFixed(1) + ' m' : '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">面積</span>
+        <span class="pop-val">${row['Area'] ? parseFloat(row['Area']).toFixed(1) + ' m²' : '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">位置</span>
+        <span class="pop-val" style="font-size:11px">${row['Region'] || '—'}</span>
+      </div>
+    `;
+  }
+
+  function loadTreePits() {
+    Papa.parse(CONFIG.pitPath, {
+      download: true, header: true, skipEmptyLines: true, encoding: 'UTF-8',
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['lat']);
+          const lng = parseFloat(row['lng']);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+
+          const marker = L.circleMarker([lat, lng], {
+            radius      : 4,
+            fillColor   : '#4a9eff',
+            color       : 'rgba(255,255,255,0.4)',
+            weight      : 1,
+            fillOpacity : 0.6,
+          }).bindPopup(buildPitPopup(row), { maxWidth: 240 });
+
+          // 樹穴預設隱藏
+          pitMarkers.push(marker);
+        });
+      },
+      error(err) { console.warn('樹穴資料載入失敗', err); },
+    });
+  }
+
+  function applyPitFilter() {
+    const show = document.getElementById('chk-pit').checked;
+    pitMarkers.forEach(m => show ? m.addTo(map) : m.remove());
+  }
+  document.getElementById('chk-pit').addEventListener('change', applyPitFilter);
+
+  // ════════════════════════════════════════
+  // 啟動
+  // ════════════════════════════════════════
+  loadTrees();
+  loadBrownrot();
+  loadProtectedTrees();
+  loadTreePits();
+  loadWeather();
+  initRoutePanel();
+  </script>
+</body>
+</html>
