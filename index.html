@@ -352,6 +352,11 @@
         <span class="c-total">總計</span>
         <span class="cnt c-total" id="cnt-total">—</span>
       </div>
+      <div id="wx-mult-badge" style="display:none;margin-top:10px;padding:6px 8px;
+           border-radius:8px;font-size:12px;text-align:center;line-height:1.5">
+        <div id="wx-mult-label"></div>
+        <div id="wx-mult-val" style="font-size:18px;font-weight:700;margin-top:2px"></div>
+      </div>
     </div>
 
     <!-- 篩選面板 -->
@@ -497,13 +502,27 @@
   // ════════════════════════════════════════
   // 標記管理
   // ════════════════════════════════════════
-  // 儲存所有標記，供篩選使用
-  const allMarkers = []; // { marker, level, dist }
+  // 儲存所有標記，供篩選 & 天氣加乘使用
+  const allMarkers = [];
+  let currentWeatherMult = 1.0; // 全域天氣乘數
+  let treesLoaded        = false;
+  let pendingWeatherData = null; // 樹木尚未就緒時暫存天氣
 
-  function buildPopupHtml(tree, score) {
-    const level = riskLevel(score);
-    const meta  = RISK_META[level];
-    const dist  = extractDist(tree['地址'] || '');
+  function buildPopupHtml(tree, score, baseScore, mult) {
+    const level  = riskLevel(score);
+    const meta   = RISK_META[level];
+    const dist   = extractDist(tree['地址'] || '');
+    const hasWx  = mult > 1.05; // 天氣有實質加乘
+
+    const wxRow = hasWx ? `
+      <div class="pop-row" style="margin-top:4px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08)">
+        <span class="pop-lbl">基礎分數</span>
+        <span class="pop-val">${baseScore} 分</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">天氣加乘</span>
+        <span class="pop-val" style="color:#e3b341">×${mult.toFixed(1)}</span>
+      </div>` : '';
 
     return `
       <div class="pop-head">🌳 ${tree['樹種名稱'] || '未知樹種'}</div>
@@ -533,8 +552,9 @@
         <span class="pop-val" style="font-size:11px;color:#8b949e">${(tree['管理單位'] || '—').substring(0, 20)}${(tree['管理單位'] || '').length > 20 ? '…' : ''}</span>
       </div>
       <div class="risk-bar-wrap">
-        <div class="pop-row">
-          <span class="pop-lbl">風險分數</span>
+        ${wxRow}
+        <div class="pop-row" style="margin-top:${hasWx ? 6 : 0}px">
+          <span class="pop-lbl">${hasWx ? '當前風險分數' : '風險分數'}</span>
           <span class="pop-val" style="color:${meta.color}">${score} 分</span>
         </div>
         <div class="risk-bar-bg">
@@ -575,16 +595,24 @@
           counts[level]++;
           distSet.add(dist);
 
+          // item 先建立，讓 popup 函數可透過閉包讀取動態分數
+          const item = { marker: null, level, dist, latlng: [lat, lng],
+                         baseScore: score, score, treeData: row };
+
           const marker = L.circleMarker([lat, lng], {
             radius      : meta.radius,
             fillColor   : meta.color,
             color       : 'rgba(255,255,255,0.6)',
             weight      : 1,
             fillOpacity : 0.85,
-          }).bindPopup(buildPopupHtml(row, score), { maxWidth: 280 });
+          }).bindPopup(
+            () => buildPopupHtml(item.treeData, item.score, item.baseScore, currentWeatherMult),
+            { maxWidth: 280 }
+          );
 
+          item.marker = marker;
           marker.addTo(map);
-          allMarkers.push({ marker, level, dist, latlng: [lat, lng], score, treeData: row });
+          allMarkers.push(item);
         });
 
         // 更新統計數字
@@ -603,6 +631,9 @@
         });
 
         document.getElementById('loading').classList.add('hidden');
+        treesLoaded = true;
+        // 若天氣已先載入，補套用乘數
+        if (pendingWeatherData) applyWeatherRisk(calcWeatherMult(pendingWeatherData));
       },
 
       error(err) {
@@ -640,6 +671,91 @@
     applyFilter();
     updateWeatherForDistrict(this.value);
   });
+
+  // ════════════════════════════════════════
+  // 天氣加乘風險
+  // ════════════════════════════════════════
+
+  /** 依天氣資料計算風險乘數 */
+  function calcWeatherMult(wd) {
+    if (!wd) return 1.0;
+    let mult = 1.0;
+
+    // 颱風警報
+    if (activeHazardsCache.length > 0) mult += 0.8;
+
+    // 風速（取陣風優先）
+    const wind = (wd.gust !== null && wd.gust > 0) ? wd.gust : wd.wind;
+    if (wind !== null) {
+      if      (wind >= 17.2) mult += 0.5;  // 蒲福 7 級以上
+      else if (wind >= 10.8) mult += 0.3;  // 6 級強風
+      else if (wind >=  7.9) mult += 0.15; // 5 級
+    }
+
+    // 降雨
+    const wx = wd.weather || '';
+    if      (/大雨|豪雨|暴雨/.test(wx)) mult += 0.3;
+    else if (/雨/.test(wx))             mult += 0.15;
+
+    return Math.min(mult, 2.5);
+  }
+
+  /** 更新統計面板上的天氣乘數徽章 */
+  function updateWxBadge(mult) {
+    const badge = document.getElementById('wx-mult-badge');
+    const label = document.getElementById('wx-mult-label');
+    const val   = document.getElementById('wx-mult-val');
+    if (mult <= 1.05) { badge.style.display = 'none'; return; }
+
+    let color, bg, text;
+    if (mult >= 1.8) {
+      color = '#f85149'; bg = 'rgba(248,81,73,0.12)';
+      text  = '颱風／極端天氣';
+    } else if (mult >= 1.4) {
+      color = '#e3b341'; bg = 'rgba(227,179,65,0.12)';
+      text  = '強風或豪雨';
+    } else {
+      color = '#e3b341'; bg = 'rgba(227,179,65,0.08)';
+      text  = '天氣風險提升';
+    }
+
+    badge.style.display    = '';
+    badge.style.background = bg;
+    badge.style.border     = `1px solid ${color}`;
+    badge.style.color      = color;
+    label.textContent      = `⚠️ ${text}`;
+    val.textContent        = `風險 ×${mult.toFixed(1)}`;
+  }
+
+  /** 對所有樹木套用天氣乘數，更新顏色與統計 */
+  function applyWeatherRisk(mult) {
+    currentWeatherMult = mult;
+    const counts = { high: 0, mid: 0, low: 0 };
+
+    allMarkers.forEach(item => {
+      const adjScore = Math.min(Math.round(item.baseScore * mult), 100);
+      const adjLevel = riskLevel(adjScore);
+      item.score = adjScore;
+      item.level = adjLevel;
+
+      const meta = RISK_META[adjLevel];
+      item.marker.setStyle({
+        fillColor   : meta.color,
+        radius      : meta.radius,
+        fillOpacity : 0.85,
+        weight      : 1,
+        color       : 'rgba(255,255,255,0.6)',
+      });
+      counts[adjLevel]++;
+    });
+
+    const total = counts.high + counts.mid + counts.low;
+    document.getElementById('cnt-high').textContent  = counts.high.toLocaleString();
+    document.getElementById('cnt-mid').textContent   = counts.mid.toLocaleString();
+    document.getElementById('cnt-low').textContent   = counts.low.toLocaleString();
+    document.getElementById('cnt-total').textContent = total.toLocaleString();
+    updateWxBadge(mult);
+  }
 
   // ════════════════════════════════════════
   // 天氣（中央氣象署 CWA）— 支援行政區切換
@@ -701,6 +817,14 @@
       `${weather || '—'}　💨${fmt(wind)} m/s`;
     document.getElementById('weather-location').textContent =
       locationLabel ? `📍 ${locationLabel}` : '';
+
+    // 天氣加乘：已載入樹木則立即套用，否則存暫存區
+    const wd = { weather, wind, gust, precip };
+    if (treesLoaded) {
+      applyWeatherRisk(calcWeatherMult(wd));
+    } else {
+      pendingWeatherData = wd;
+    }
   }
 
   // ── 警告橫幅判斷 ──────────────────────────
