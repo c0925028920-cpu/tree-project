@@ -13,8 +13,8 @@
 
     body {
       font-family: 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
-      background: #0d1117;
-      color: #e6edf3;
+      background: #0a1f0d;
+      color: #e8f5e9;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -47,12 +47,12 @@
       align-items: center;
       justify-content: space-between;
       padding: 10px 20px;
-      background: linear-gradient(135deg, #161b22, #0d1117);
+      background: linear-gradient(135deg, #112916, #0a1f0d);
       border-bottom: 1px solid rgba(100, 200, 255, 0.15);
       flex-shrink: 0;
       z-index: 2000;
     }
-    #header h1 { font-size: 18px; font-weight: 700; color: #cae8ff; letter-spacing: 0.5px; }
+    #header h1 { font-size: 18px; font-weight: 700; color: #d4edda; letter-spacing: 0.5px; }
 
     /* 天氣小卡 */
     #weather-widget {
@@ -67,7 +67,7 @@
     }
     #weather-icon { font-size: 30px; line-height: 1; }
     #weather-temp { font-size: 17px; font-weight: 700; color: #fff; }
-    #weather-desc { font-size: 12px; color: #79c0ff; margin-top: 2px; }
+    #weather-desc { font-size: 12px; color: #81c784; margin-top: 2px; }
 
     /* ── 地圖區域 ── */
     #map-container { flex: 1; position: relative; overflow: hidden; }
@@ -88,19 +88,19 @@
     #loading.hidden { display: none; }
     .spinner {
       width: 42px; height: 42px;
-      border: 4px solid rgba(100,200,255,0.2);
-      border-top-color: #58a6ff;
+      border: 4px solid rgba(86,194,113,0.2);
+      border-top-color: #56c271;
       border-radius: 50%;
       animation: spin 0.75s linear infinite;
     }
-    #loading-msg { font-size: 14px; color: #79c0ff; }
+    #loading-msg { font-size: 14px; color: #81c784; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── 浮動面板共用 ── */
     .panel {
       position: absolute;
       background: rgba(13, 17, 23, 0.92);
-      border: 1px solid rgba(100,200,255,0.18);
+      border: 1px solid rgba(86,194,113,0.18);
       border-radius: 12px;
       padding: 14px 18px;
       backdrop-filter: blur(6px);
@@ -108,7 +108,7 @@
     }
     .panel-title {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      color: #79c0ff; text-transform: uppercase; margin-bottom: 10px;
+      color: #81c784; text-transform: uppercase; margin-bottom: 10px;
     }
 
     /* 統計面板 */
@@ -120,22 +120,22 @@
     .stat-row + .stat-row { border-top: 1px solid rgba(255,255,255,0.06); }
     .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
     .cnt { font-weight: 700; font-size: 15px; }
-    .c-high { color: #f85149; } .dot-high { background: #f85149; }
-    .c-mid  { color: #e3b341; } .dot-mid  { background: #e3b341; }
-    .c-low  { color: #3fb950; } .dot-low  { background: #3fb950; }
-    .c-total{ color: #cae8ff; }
+    .c-high { color: #e53935; } .dot-high { background: #e53935; }
+    .c-mid  { color: #fb8c00; } .dot-mid  { background: #fb8c00; }
+    .c-low  { color: #43a047; } .dot-low  { background: #43a047; }
+    .c-total{ color: #d4edda; }
     .divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 6px 0; }
 
     /* 篩選面板 */
     #filter-panel { top: 16px; right: 16px; min-width: 175px; }
     #filter-panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
-    #filter-panel input[type=checkbox] { accent-color: #58a6ff; width: 14px; height: 14px; cursor: pointer; }
+    #filter-panel input[type=checkbox] { accent-color: #56c271; width: 14px; height: 14px; cursor: pointer; }
     #filter-panel select {
       width: 100%; margin-top: 8px; padding: 5px 8px; border-radius: 6px;
-      background: rgba(255,255,255,0.08); color: #e6edf3;
+      background: rgba(255,255,255,0.08); color: #e8f5e9;
       border: 1px solid rgba(255,255,255,0.2); font-size: 13px;
     }
-    #filter-panel select option { background: #161b22; }
+    #filter-panel select option { background: #112916; }
 
     /* 圖例面板 */
     #legend { bottom: 30px; left: 16px; }
@@ -144,19 +144,19 @@
 
     /* ── Leaflet popup 覆蓋 ── */
     .leaflet-popup-content-wrapper {
-      background: #161b22;
-      color: #e6edf3;
-      border: 1px solid rgba(100,200,255,0.25);
+      background: #112916;
+      color: #e8f5e9;
+      border: 1px solid rgba(86,194,113,0.25);
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     }
     .leaflet-popup-content { margin: 14px 16px; min-width: 230px; }
     .leaflet-popup-tip-container { display: none; }
 
-    .pop-head { font-size: 15px; font-weight: 700; color: #58a6ff; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
-    .pop-sci  { font-size: 11px; font-style: italic; color: #8b949e; margin-top: -6px; margin-bottom: 8px; }
+    .pop-head { font-size: 15px; font-weight: 700; color: #56c271; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+    .pop-sci  { font-size: 11px; font-style: italic; color: #7a9e7e; margin-top: -6px; margin-bottom: 8px; }
     .pop-row  { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; gap: 16px; }
-    .pop-lbl  { color: #8b949e; white-space: nowrap; }
+    .pop-lbl  { color: #7a9e7e; white-space: nowrap; }
     .pop-val  { font-weight: 600; text-align: right; word-break: break-all; }
 
     .risk-bar-wrap { margin-top: 10px; }
@@ -164,16 +164,16 @@
     .risk-bar-fill { height: 100%; border-radius: 4px; }
 
     .risk-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 10px; }
-    .badge-high { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid #f85149; }
-    .badge-mid  { background: rgba(227,179,65,0.15); color: #e3b341; border: 1px solid #e3b341; }
-    .badge-low  { background: rgba(63,185,80,0.15);  color: #3fb950; border: 1px solid #3fb950; }
+    .badge-high { background: rgba(229,57,53,0.15); color: #e53935; border: 1px solid #e53935; }
+    .badge-mid  { background: rgba(251,140,0,0.15); color: #fb8c00; border: 1px solid #fb8c00; }
+    .badge-low  { background: rgba(67,160,71,0.15);  color: #43a047; border: 1px solid #43a047; }
 
     /* ── 路線查詢按鈕（header） ── */
     #btn-route {
-      background: rgba(88,166,255,0.1);
-      border: 1px solid rgba(88,166,255,0.3);
+      background: rgba(86,194,113,0.1);
+      border: 1px solid rgba(86,194,113,0.3);
       border-radius: 8px;
-      color: #58a6ff;
+      color: #56c271;
       font-size: 13px;
       font-weight: 600;
       padding: 7px 14px;
@@ -182,8 +182,8 @@
       margin-right: 12px;
       transition: background 0.2s;
     }
-    #btn-route:hover  { background: rgba(88,166,255,0.2); }
-    #btn-route.active { background: rgba(88,166,255,0.22); border-color: #58a6ff; }
+    #btn-route:hover  { background: rgba(86,194,113,0.2); }
+    #btn-route.active { background: rgba(86,194,113,0.22); border-color: #56c271; }
 
     /* ── 路線側欄 ── */
     #route-sidebar {
@@ -191,7 +191,7 @@
       top: 0; left: 0; bottom: 0;
       width: 296px;
       background: rgba(10,13,20,0.97);
-      border-right: 1px solid rgba(100,200,255,0.15);
+      border-right: 1px solid rgba(86,194,113,0.15);
       backdrop-filter: blur(8px);
       z-index: 1200;
       display: flex;
@@ -205,14 +205,14 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 13px 16px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
-      font-size: 14px; font-weight: 700; color: #cae8ff;
+      font-size: 14px; font-weight: 700; color: #d4edda;
       flex-shrink: 0;
     }
     .rs-close {
-      background: none; border: none; color: #8b949e;
+      background: none; border: none; color: #7a9e7e;
       font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
     }
-    .rs-close:hover { color: #e6edf3; background: rgba(255,255,255,0.08); }
+    .rs-close:hover { color: #e8f5e9; background: rgba(255,255,255,0.08); }
 
     .rs-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
     .rs-body::-webkit-scrollbar { width: 3px; }
@@ -220,32 +220,32 @@
 
     .rs-label {
       font-size: 11px; font-weight: 700; letter-spacing: 1px;
-      color: #79c0ff; text-transform: uppercase; margin-bottom: 5px; display: block;
+      color: #81c784; text-transform: uppercase; margin-bottom: 5px; display: block;
     }
     .rs-input-wrap { position: relative; margin-bottom: 4px; }
     .rs-input-wrap input {
       width: 100%; padding: 8px 11px;
       background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 8px; color: #e6edf3; font-size: 13px; outline: none;
+      border-radius: 8px; color: #e8f5e9; font-size: 13px; outline: none;
     }
-    .rs-input-wrap input:focus { border-color: #58a6ff; }
+    .rs-input-wrap input:focus { border-color: #56c271; }
     .rs-input-wrap input::placeholder { color: #3d444d; }
-    .rs-status { font-size: 11px; color: #79c0ff; min-height: 14px; margin-bottom: 8px; }
-    .rs-err    { color: #f85149; }
+    .rs-status { font-size: 11px; color: #81c784; min-height: 14px; margin-bottom: 8px; }
+    .rs-err    { color: #e53935; }
 
     /* 建議下拉 */
     .rs-suggestions {
       position: absolute; top: calc(100% + 2px); left: 0; right: 0;
-      background: #161b22; border: 1px solid rgba(100,200,255,0.18);
+      background: #112916; border: 1px solid rgba(86,194,113,0.18);
       border-radius: 8px; z-index: 20; max-height: 150px; overflow-y: auto;
     }
     .rs-sug-item {
-      padding: 8px 11px; font-size: 12px; color: #e6edf3; cursor: pointer;
+      padding: 8px 11px; font-size: 12px; color: #e8f5e9; cursor: pointer;
       border-bottom: 1px solid rgba(255,255,255,0.05);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .rs-sug-item:last-child { border-bottom: none; }
-    .rs-sug-item:hover { background: rgba(88,166,255,0.1); }
+    .rs-sug-item:hover { background: rgba(86,194,113,0.1); }
 
     /* 步行 / 開車 */
     .rs-mode { display: flex; gap: 6px; margin: 10px 0 14px; }
@@ -256,7 +256,7 @@
     }
     .rs-mode input[type=radio] { display: none; }
     .rs-mode label:has(input:checked) {
-      background: rgba(88,166,255,0.14); border-color: #58a6ff; color: #58a6ff;
+      background: rgba(86,194,113,0.14); border-color: #56c271; color: #56c271;
     }
 
     /* 按鈕 */
@@ -267,26 +267,26 @@
     }
     .rs-btn:hover:not(:disabled) { opacity: 0.82; }
     .rs-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .rs-btn-primary   { background: #1f6feb; color: #fff; }
-    .rs-btn-secondary { background: rgba(255,255,255,0.07); color: #cae8ff; }
+    .rs-btn-primary   { background: #2d9e5f; color: #fff; }
+    .rs-btn-secondary { background: rgba(255,255,255,0.07); color: #d4edda; }
 
     .rs-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 12px 0; }
 
     /* 路線資訊 */
     .rs-info-row {
       display: flex; justify-content: space-between;
-      font-size: 13px; padding: 3px 0; color: #8b949e;
+      font-size: 13px; padding: 3px 0; color: #7a9e7e;
     }
-    .rs-info-val { color: #e6edf3; font-weight: 600; }
+    .rs-info-val { color: #e8f5e9; font-weight: 600; }
 
     /* 風險摘要條 */
     .rs-risk-row {
       display: flex; align-items: center; justify-content: space-between;
       padding: 7px 10px; border-radius: 8px; margin-bottom: 5px; font-size: 13px;
     }
-    .rs-risk-high { background: rgba(248,81,73,0.1); }
-    .rs-risk-mid  { background: rgba(227,179,65,0.1); }
-    .rs-risk-low  { background: rgba(63,185,80,0.1);  }
+    .rs-risk-high { background: rgba(229,57,53,0.1); }
+    .rs-risk-mid  { background: rgba(251,140,0,0.1); }
+    .rs-risk-low  { background: rgba(67,160,71,0.1);  }
     .rs-risk-cnt  { font-weight: 700; font-size: 17px; }
 
     /* 高風險樹木清單 */
@@ -295,9 +295,9 @@
       background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
       cursor: pointer; transition: background 0.15s;
     }
-    .rs-tree-item:hover { background: rgba(88,166,255,0.07); border-color: rgba(88,166,255,0.2); }
+    .rs-tree-item:hover { background: rgba(86,194,113,0.07); border-color: rgba(86,194,113,0.2); }
     .rs-tree-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-    .rs-tree-addr { font-size: 11px; color: #8b949e; }
+    .rs-tree-addr { font-size: 11px; color: #7a9e7e; }
     .rs-tree-score { font-size: 12px; font-weight: 700; float: right; margin-top: 1px; }
   </style>
 </head>
@@ -317,7 +317,7 @@
       <div>
         <div id="weather-temp">載入中...</div>
         <div id="weather-desc">台北市即時天氣</div>
-        <div id="weather-location" style="font-size:11px;color:#58a6ff;margin-top:2px;min-height:14px"></div>
+        <div id="weather-location" style="font-size:11px;color:#56c271;margin-top:2px;min-height:14px"></div>
       </div>
     </div>
   </div>
@@ -408,10 +408,10 @@
     <!-- 圖例面板 -->
     <div id="legend" class="panel">
       <div class="panel-title">風險等級</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>高風險（≥ 70 分）</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>中風險（40–69 分）</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>低風險（＜ 40 分）</div>
-      <div style="margin-top:10px; font-size:11px; color:#8b949e; line-height:1.6">
+      <div class="legend-item"><div class="legend-dot" style="background:#e53935"></div>高風險（≥ 70 分）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fb8c00"></div>中風險（40–69 分）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div>低風險（＜ 40 分）</div>
+      <div style="margin-top:10px; font-size:11px; color:#7a9e7e; line-height:1.6">
         風險因子：胸徑、胸圍<br>地點類型（道路／公共場所）
       </div>
     </div>
@@ -477,9 +477,9 @@
   }
 
   const RISK_META = {
-    high : { label: '高風險', color: '#f85149', radius: 8,  badgeClass: 'badge-high' },
-    mid  : { label: '中風險', color: '#e3b341', radius: 6,  badgeClass: 'badge-mid'  },
-    low  : { label: '低風險', color: '#3fb950', radius: 4,  badgeClass: 'badge-low'  },
+    high : { label: '高風險', color: '#e53935', radius: 8,  badgeClass: 'badge-high' },
+    mid  : { label: '中風險', color: '#fb8c00', radius: 6,  badgeClass: 'badge-mid'  },
+    low  : { label: '低風險', color: '#43a047', radius: 4,  badgeClass: 'badge-low'  },
   };
 
   /** 從地址萃取行政區（例：臺北市大安區→ 大安區） */
@@ -521,7 +521,7 @@
       </div>
       <div class="pop-row">
         <span class="pop-lbl">天氣加乘</span>
-        <span class="pop-val" style="color:#e3b341">×${mult.toFixed(1)}</span>
+        <span class="pop-val" style="color:#fb8c00">×${mult.toFixed(1)}</span>
       </div>` : '';
 
     return `
@@ -549,7 +549,7 @@
       </div>
       <div class="pop-row">
         <span class="pop-lbl">管理單位</span>
-        <span class="pop-val" style="font-size:11px;color:#8b949e">${(tree['管理單位'] || '—').substring(0, 20)}${(tree['管理單位'] || '').length > 20 ? '…' : ''}</span>
+        <span class="pop-val" style="font-size:11px;color:#7a9e7e">${(tree['管理單位'] || '—').substring(0, 20)}${(tree['管理單位'] || '').length > 20 ? '…' : ''}</span>
       </div>
       <div class="risk-bar-wrap">
         ${wxRow}
@@ -638,7 +638,7 @@
 
       error(err) {
         document.getElementById('loading-msg').innerHTML =
-          `<span style="color:#f85149">⚠️ 無法載入 CSV<br><small>${err.message || err}</small></span>`;
+          `<span style="color:#e53935">⚠️ 無法載入 CSV<br><small>${err.message || err}</small></span>`;
       },
     });
   }
@@ -709,13 +709,13 @@
 
     let color, bg, text;
     if (mult >= 1.8) {
-      color = '#f85149'; bg = 'rgba(248,81,73,0.12)';
+      color = '#e53935'; bg = 'rgba(229,57,53,0.12)';
       text  = '颱風／極端天氣';
     } else if (mult >= 1.4) {
-      color = '#e3b341'; bg = 'rgba(227,179,65,0.12)';
+      color = '#fb8c00'; bg = 'rgba(251,140,0,0.12)';
       text  = '強風或豪雨';
     } else {
-      color = '#e3b341'; bg = 'rgba(227,179,65,0.08)';
+      color = '#fb8c00'; bg = 'rgba(251,140,0,0.08)';
       text  = '天氣風險提升';
     }
 
@@ -1062,7 +1062,7 @@
   function drawRoute(geometry) {
     if (routeLayer) routeLayer.remove();
     routeLayer = L.geoJSON(geometry, {
-      style: { color: '#58a6ff', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
+      style: { color: '#56c271', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
     }).addTo(map);
     map.fitBounds(routeLayer.getBounds(), { padding: [60, 80] });
   }
@@ -1175,7 +1175,7 @@
             <div class="rs-tree-addr">${addr}</div>
           </div>`;
         }).join('')}
-      ` : `<p style="font-size:13px;color:#3fb950;text-align:center;padding:12px 0">
+      ` : `<p style="font-size:13px;color:#43a047;text-align:center;padding:12px 0">
             ✅ 此路線沿途無高風險樹木
            </p>`}
     `;
