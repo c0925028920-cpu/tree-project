@@ -7,318 +7,576 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- 科技感字型 -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
   <style>
+    :root {
+      --cyan:       #00d4ff;
+      --cyan-dim:   rgba(0,212,255,0.12);
+      --cyan-glow:  rgba(0,212,255,0.35);
+      --blue:       #4a9eff;
+      --bg-deep:    #020912;
+      --bg-panel:   rgba(2,12,26,0.93);
+      --high:       #ff4757;
+      --high-glow:  rgba(255,71,87,0.4);
+      --mid:        #ffa502;
+      --low:        #2ed573;
+      --protected:  #ffd700;
+      --brownrot:   #bf5af2;
+      --border:     rgba(0,212,255,0.2);
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
-      background: #0d1117;
-      color: #e6edf3;
+      background: var(--bg-deep);
+      color: #c8d8f0;
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
 
-    /* ── 氣象警告橫幅 ── */
-    #weather-alert {
-      display: none;
-      background: linear-gradient(90deg, #b91c1c, #dc2626);
-      color: #fff;
-      text-align: center;
-      padding: 10px 20px;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      animation: alertPulse 2s ease-in-out infinite;
-      z-index: 3000;
-      flex-shrink: 0;
+    /* ══ 霓虹發光邊框動畫 ══ */
+    @keyframes borderGlow {
+      0%,100% { box-shadow: 0 0 6px var(--cyan-glow), inset 0 0 6px rgba(0,212,255,0.03); }
+      50%      { box-shadow: 0 0 14px var(--cyan-glow), inset 0 0 10px rgba(0,212,255,0.06); }
     }
-    #weather-alert.active { display: block; }
+    @keyframes scanline {
+      0%   { transform: translateY(-100%); }
+      100% { transform: translateY(100vh); }
+    }
     @keyframes alertPulse {
-      0%, 100% { background: linear-gradient(90deg, #b91c1c, #dc2626); }
-      50%       { background: linear-gradient(90deg, #7f1d1d, #b91c1c); }
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.75; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulseRing {
+      0%   { transform: scale(1);   opacity: 0.9; }
+      100% { transform: scale(3.5); opacity: 0; }
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
     }
 
-    /* ── 頂部導覽列 ── */
+    /* ══ 掃描線覆蓋（載入完成後移除） ══ */
+    #scanline-overlay {
+      position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+    }
+
+    /* ══ 氣象警告橫幅 ══ */
+    #weather-alert {
+      display: none;
+      background: linear-gradient(90deg, #7f0000, var(--high), #7f0000);
+      background-size: 200% 100%;
+      color: #fff;
+      text-align: center;
+      padding: 9px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      animation: alertPulse 1.5s ease-in-out infinite, shimmer 3s linear infinite;
+      z-index: 3000;
+      flex-shrink: 0;
+      text-shadow: 0 0 8px rgba(255,71,87,0.8);
+      box-shadow: 0 2px 20px var(--high-glow);
+    }
+    #weather-alert.active { display: block; }
+
+    /* ══ 頂部導覽列 ══ */
     #header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 20px;
-      background: linear-gradient(135deg, #161b22, #0d1117);
-      border-bottom: 1px solid rgba(100, 200, 255, 0.15);
+      padding: 0 20px;
+      height: 56px;
+      background: linear-gradient(180deg, rgba(0,10,24,0.98) 0%, rgba(2,12,26,0.96) 100%);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(0,212,255,0.08), 0 4px 24px rgba(0,0,0,0.6);
       flex-shrink: 0;
       z-index: 2000;
+      position: relative;
     }
-    #header h1 { font-size: 18px; font-weight: 700; color: #cae8ff; letter-spacing: 0.5px; }
+    /* 底部發光線 */
+    #header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      animation: shimmer 4s linear infinite;
+    }
+
+    #header h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 1px;
+      text-shadow: 0 0 12px var(--cyan-glow);
+      white-space: nowrap;
+    }
+    #header-sub {
+      font-size: 10px;
+      color: rgba(0,212,255,0.5);
+      letter-spacing: 2px;
+      font-family: 'Share Tech Mono', monospace;
+      margin-top: 2px;
+    }
 
     /* 天氣小卡 */
     #weather-widget {
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 12px;
-      padding: 7px 16px;
+      background: rgba(0,212,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
       min-width: 210px;
+      position: relative;
     }
-    #weather-icon { font-size: 30px; line-height: 1; }
-    #weather-temp { font-size: 17px; font-weight: 700; color: #fff; }
-    #weather-desc { font-size: 12px; color: #79c0ff; margin-top: 2px; }
+    #weather-widget::before,
+    #weather-widget::after {
+      content: '';
+      position: absolute;
+      width: 6px; height: 6px;
+      border-color: var(--cyan);
+      border-style: solid;
+    }
+    #weather-widget::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+    #weather-widget::after  { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
 
-    /* ── 地圖區域 ── */
+    #weather-icon { font-size: 28px; line-height: 1; }
+    #weather-temp {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 16px; font-weight: 400; color: #fff;
+    }
+    #weather-desc { font-size: 11px; color: var(--cyan); margin-top: 2px; opacity: 0.8; }
+    #weather-location { font-size: 10px; color: var(--blue); margin-top: 2px; min-height: 13px; }
+
+    /* ══ 地圖區域 ══ */
     #map-container { flex: 1; position: relative; overflow: hidden; }
     #map { width: 100%; height: 100%; }
 
-    /* ── 載入遮罩 ── */
+    /* ══ 載入遮罩 ══ */
     #loading {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      background: rgba(13, 17, 23, 0.85);
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      background: rgba(2,9,18,0.92);
       z-index: 1500;
+      backdrop-filter: blur(4px);
     }
     #loading.hidden { display: none; }
-    .spinner {
-      width: 42px; height: 42px;
-      border: 4px solid rgba(100,200,255,0.2);
-      border-top-color: #58a6ff;
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-    }
-    #loading-msg { font-size: 14px; color: #79c0ff; }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── 浮動面板共用 ── */
+    .spinner {
+      position: relative;
+      width: 56px; height: 56px;
+    }
+    .spinner::before, .spinner::after {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .spinner::before {
+      border-top-color: var(--cyan);
+      animation: spin 0.9s linear infinite;
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+    .spinner::after {
+      border-bottom-color: var(--blue);
+      animation: spin 1.4s linear infinite reverse;
+      inset: 6px;
+    }
+
+    #loading-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px; letter-spacing: 3px;
+      color: var(--cyan);
+      text-shadow: 0 0 10px var(--cyan-glow);
+    }
+    #loading-msg {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px; color: rgba(0,212,255,0.6);
+      letter-spacing: 1px;
+    }
+    #loading-bar-wrap {
+      width: 200px; height: 2px;
+      background: rgba(0,212,255,0.1);
+      border-radius: 1px; overflow: hidden;
+    }
+    #loading-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--blue));
+      box-shadow: 0 0 6px var(--cyan);
+      animation: shimmer 1.5s linear infinite;
+      background-size: 200%;
+      width: 60%;
+    }
+
+    /* ══ 浮動面板共用 ══ */
     .panel {
       position: absolute;
-      background: rgba(13, 17, 23, 0.92);
-      border: 1px solid rgba(100,200,255,0.18);
-      border-radius: 12px;
-      padding: 14px 18px;
-      backdrop-filter: blur(6px);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 16px;
+      backdrop-filter: blur(12px);
       z-index: 1000;
+      animation: borderGlow 3s ease-in-out infinite;
     }
+    /* 角架裝飾 */
+    .panel::before, .panel::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      border-color: var(--cyan);
+      border-style: solid;
+    }
+    .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
     .panel-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      color: #79c0ff; text-transform: uppercase; margin-bottom: 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px; letter-spacing: 2px;
+      color: var(--cyan); text-transform: uppercase;
+      margin-bottom: 10px;
+      opacity: 0.85;
     }
 
     /* 統計面板 */
-    #stats { top: 16px; left: 16px; min-width: 155px; }
+    #stats { top: 16px; left: 16px; min-width: 165px; }
     .stat-row {
       display: flex; justify-content: space-between; align-items: center;
-      font-size: 13px; padding: 4px 0; gap: 14px;
+      font-size: 12px; padding: 5px 0; gap: 14px;
     }
-    .stat-row + .stat-row { border-top: 1px solid rgba(255,255,255,0.06); }
-    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
-    .cnt { font-weight: 700; font-size: 15px; }
-    .c-high  { color: #f85149; } .dot-high  { background: #f85149; }
-    .c-mid   { color: #e3b341; } .dot-mid   { background: #e3b341; }
-    .c-low   { color: #3fb950; } .dot-low   { background: #3fb950; }
-    .c-none  { color: #6e7681; } .dot-none  { background: #6e7681; }
-    .c-total { color: #cae8ff; }
-    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 6px 0; }
+    .stat-row + .stat-row { border-top: 1px solid rgba(0,212,255,0.07); }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block; margin-right: 6px; flex-shrink: 0;
+      box-shadow: 0 0 5px currentColor;
+    }
+    .cnt {
+      font-family: 'Share Tech Mono', monospace;
+      font-weight: 400; font-size: 16px;
+    }
+    .c-high  { color: var(--high); }  .dot-high  { background: var(--high);      box-shadow: 0 0 6px var(--high-glow); }
+    .c-mid   { color: var(--mid);  }  .dot-mid   { background: var(--mid);       box-shadow: 0 0 6px rgba(255,165,2,0.4); }
+    .c-low   { color: var(--low);  }  .dot-low   { background: var(--low);       box-shadow: 0 0 6px rgba(46,213,115,0.4); }
+    .c-none  { color: #4a5568; }      .dot-none  { background: #4a5568; }
+    .c-total { color: var(--cyan); }
+    .divider { border: none; border-top: 1px solid rgba(0,212,255,0.1); margin: 6px 0; }
 
     /* 篩選面板 */
-    #filter-panel { top: 16px; right: 16px; min-width: 175px; }
-    #filter-panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; cursor: pointer; }
-    #filter-panel input[type=checkbox] { accent-color: #58a6ff; width: 14px; height: 14px; cursor: pointer; }
-    #filter-panel select {
-      width: 100%; margin-top: 8px; padding: 5px 8px; border-radius: 6px;
-      background: rgba(255,255,255,0.08); color: #e6edf3;
-      border: 1px solid rgba(255,255,255,0.2); font-size: 13px;
+    #filter-panel { top: 16px; right: 16px; min-width: 180px; }
+    #filter-panel label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; padding: 4px 0; cursor: pointer;
     }
-    #filter-panel select option { background: #161b22; }
+    #filter-panel input[type=checkbox] {
+      accent-color: var(--cyan); width: 13px; height: 13px; cursor: pointer;
+    }
+    #filter-panel select {
+      width: 100%; margin-top: 8px; padding: 5px 8px; border-radius: 3px;
+      background: rgba(0,212,255,0.05); color: #c8d8f0;
+      border: 1px solid var(--border); font-size: 12px;
+      font-family: 'Microsoft JhengHei', sans-serif;
+    }
+    #filter-panel select option { background: #020d1c; }
 
     /* 圖例面板 */
     #legend { bottom: 30px; left: 16px; }
-    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
-    .legend-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); flex-shrink: 0; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+    .legend-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.3); flex-shrink: 0;
+    }
 
-    /* ── Leaflet popup 覆蓋 ── */
+    /* ══ Leaflet popup ══ */
     .leaflet-popup-content-wrapper {
-      background: #161b22;
-      color: #e6edf3;
-      border: 1px solid rgba(100,200,255,0.25);
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      background: rgba(2,10,22,0.97);
+      color: #c8d8f0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-shadow: 0 0 20px rgba(0,212,255,0.15), 0 8px 40px rgba(0,0,0,0.8);
     }
     .leaflet-popup-content { margin: 14px 16px; min-width: 230px; }
     .leaflet-popup-tip-container { display: none; }
 
-    .pop-head { font-size: 15px; font-weight: 700; color: #58a6ff; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); }
-    .pop-row  { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; gap: 16px; }
-    .pop-lbl  { color: #8b949e; white-space: nowrap; }
+    .pop-head {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--cyan);
+      margin-bottom: 10px; padding-bottom: 8px;
+      border-bottom: 1px solid rgba(0,212,255,0.15);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+    .pop-row  { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; gap: 16px; }
+    .pop-lbl  { color: #5a7a9a; white-space: nowrap; font-family: 'Share Tech Mono', monospace; font-size: 11px; }
     .pop-val  { font-weight: 600; text-align: right; word-break: break-all; }
 
     .risk-bar-wrap { margin-top: 10px; }
-    .risk-bar-bg   { background: rgba(255,255,255,0.08); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 4px; }
-    .risk-bar-fill { height: 100%; border-radius: 4px; }
+    .risk-bar-bg   { background: rgba(255,255,255,0.06); border-radius: 2px; height: 4px; overflow: hidden; margin-top: 4px; }
+    .risk-bar-fill { height: 100%; border-radius: 2px; }
 
-    .risk-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 10px; }
-    .badge-high { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid #f85149; }
-    .badge-mid  { background: rgba(227,179,65,0.15); color: #e3b341; border: 1px solid #e3b341; }
-    .badge-low  { background: rgba(63,185,80,0.15);  color: #3fb950; border: 1px solid #3fb950; }
-    .badge-none { background: rgba(110,118,129,0.15); color: #6e7681; border: 1px solid #6e7681; }
+    .risk-badge {
+      display: inline-block; padding: 3px 12px;
+      border-radius: 2px; font-size: 11px; font-weight: 700;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1px; margin-top: 10px;
+    }
+    .badge-high { background: rgba(255,71,87,0.1);  color: var(--high); border: 1px solid var(--high); box-shadow: 0 0 8px var(--high-glow); }
+    .badge-mid  { background: rgba(255,165,2,0.1);  color: var(--mid);  border: 1px solid var(--mid); }
+    .badge-low  { background: rgba(46,213,115,0.1); color: var(--low);  border: 1px solid var(--low); }
+    .badge-none { background: rgba(74,85,104,0.1);  color: #4a5568;     border: 1px solid #4a5568; }
 
-    /* ── 路線查詢按鈕（header） ── */
+    /* ══ 高風險脈衝 marker ══ */
+    .pulse-marker {
+      position: relative;
+      width: 14px; height: 14px;
+    }
+    .pulse-core {
+      position: absolute; inset: 2px;
+      border-radius: 50%;
+      background: var(--high);
+      box-shadow: 0 0 6px var(--high-glow);
+    }
+    .pulse-ring {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--high);
+      animation: pulseRing 1.6s ease-out infinite;
+    }
+    .pulse-ring2 {
+      animation-delay: 0.8s;
+    }
+
+    /* ══ 路線按鈕 ══ */
     #btn-route {
-      background: rgba(88,166,255,0.1);
-      border: 1px solid rgba(88,166,255,0.3);
-      border-radius: 8px;
-      color: #58a6ff;
-      font-size: 13px;
+      background: rgba(0,212,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--cyan);
+      font-size: 12px;
       font-weight: 600;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1px;
       padding: 7px 14px;
       cursor: pointer;
       white-space: nowrap;
       margin-right: 12px;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
-    #btn-route:hover  { background: rgba(88,166,255,0.2); }
-    #btn-route.active { background: rgba(88,166,255,0.22); border-color: #58a6ff; }
+    #btn-route:hover  { background: var(--cyan-dim); box-shadow: 0 0 10px var(--cyan-glow); }
+    #btn-route.active { background: var(--cyan-dim); box-shadow: 0 0 10px var(--cyan-glow); }
 
-    /* ── 路線側欄 ── */
+    /* ══ 路線側欄 ══ */
     #route-sidebar {
       position: absolute;
       top: 0; left: 0; bottom: 0;
       width: 296px;
-      background: rgba(10,13,20,0.97);
-      border-right: 1px solid rgba(100,200,255,0.15);
-      backdrop-filter: blur(8px);
+      background: rgba(2,9,20,0.97);
+      border-right: 1px solid var(--border);
+      backdrop-filter: blur(12px);
       z-index: 1200;
-      display: flex;
-      flex-direction: column;
+      display: flex; flex-direction: column;
       transform: translateX(-100%);
       transition: transform 0.28s ease;
+      box-shadow: inset -1px 0 0 rgba(0,212,255,0.05);
     }
-    #route-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
+    #route-sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,0.7), inset -1px 0 0 rgba(0,212,255,0.08); }
 
     .rs-head {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 13px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
-      font-size: 14px; font-weight: 700; color: #cae8ff;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(0,212,255,0.1);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px; font-weight: 600; color: var(--cyan);
+      letter-spacing: 1px;
       flex-shrink: 0;
+      text-shadow: 0 0 8px var(--cyan-glow);
     }
     .rs-close {
-      background: none; border: none; color: #8b949e;
-      font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+      background: none; border: 1px solid rgba(0,212,255,0.2);
+      color: #5a7a9a; font-size: 14px; cursor: pointer;
+      padding: 2px 7px; border-radius: 3px; transition: all 0.2s;
     }
-    .rs-close:hover { color: #e6edf3; background: rgba(255,255,255,0.08); }
+    .rs-close:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-glow); }
 
     .rs-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
-    .rs-body::-webkit-scrollbar { width: 3px; }
-    .rs-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+    .rs-body::-webkit-scrollbar { width: 2px; }
+    .rs-body::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.2); border-radius: 1px; }
 
     .rs-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 1px;
-      color: #79c0ff; text-transform: uppercase; margin-bottom: 5px; display: block;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px; letter-spacing: 2px;
+      color: var(--cyan); text-transform: uppercase;
+      margin-bottom: 5px; display: block; opacity: 0.7;
     }
     .rs-input-wrap { position: relative; margin-bottom: 4px; }
     .rs-input-wrap input {
       width: 100%; padding: 8px 11px;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 8px; color: #e6edf3; font-size: 13px; outline: none;
+      background: rgba(0,212,255,0.04); border: 1px solid rgba(0,212,255,0.15);
+      border-radius: 3px; color: #c8d8f0; font-size: 13px; outline: none;
+      font-family: 'Microsoft JhengHei', sans-serif;
+      transition: border-color 0.2s;
     }
-    .rs-input-wrap input:focus { border-color: #58a6ff; }
-    .rs-input-wrap input::placeholder { color: #3d444d; }
-    .rs-status { font-size: 11px; color: #79c0ff; min-height: 14px; margin-bottom: 8px; }
-    .rs-err    { color: #f85149; }
+    .rs-input-wrap input:focus { border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-dim); }
+    .rs-input-wrap input::placeholder { color: #2a3a50; }
+    .rs-status { font-size: 11px; color: var(--cyan); min-height: 14px; margin-bottom: 8px; font-family: 'Share Tech Mono', monospace; }
+    .rs-err    { color: var(--high); }
 
-    /* 建議下拉 */
     .rs-suggestions {
       position: absolute; top: calc(100% + 2px); left: 0; right: 0;
-      background: #161b22; border: 1px solid rgba(100,200,255,0.18);
-      border-radius: 8px; z-index: 20; max-height: 150px; overflow-y: auto;
+      background: rgba(2,10,22,0.98); border: 1px solid var(--border);
+      border-radius: 3px; z-index: 20; max-height: 150px; overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
     .rs-sug-item {
-      padding: 8px 11px; font-size: 12px; color: #e6edf3; cursor: pointer;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding: 8px 11px; font-size: 12px; color: #c8d8f0; cursor: pointer;
+      border-bottom: 1px solid rgba(0,212,255,0.06);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .rs-sug-item:last-child { border-bottom: none; }
-    .rs-sug-item:hover { background: rgba(88,166,255,0.1); }
+    .rs-sug-item:hover { background: var(--cyan-dim); color: var(--cyan); }
 
-    /* 步行 / 開車 */
     .rs-mode { display: flex; gap: 6px; margin: 10px 0 14px; }
     .rs-mode label {
       flex: 1; display: flex; align-items: center; justify-content: center;
-      gap: 5px; padding: 7px; border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s;
+      gap: 5px; padding: 7px; border: 1px solid rgba(0,212,255,0.15);
+      border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s;
     }
     .rs-mode input[type=radio] { display: none; }
     .rs-mode label:has(input:checked) {
-      background: rgba(88,166,255,0.14); border-color: #58a6ff; color: #58a6ff;
+      background: var(--cyan-dim); border-color: var(--cyan);
+      color: var(--cyan); box-shadow: 0 0 8px var(--cyan-dim);
     }
 
-    /* 按鈕 */
     .rs-btn {
-      width: 100%; padding: 9px; border-radius: 8px; border: none;
-      font-size: 13px; font-weight: 600; cursor: pointer;
-      margin-bottom: 6px; transition: opacity 0.2s;
+      width: 100%; padding: 9px; border-radius: 3px; border: none;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+      margin-bottom: 6px; transition: all 0.2s;
+      font-family: 'Share Tech Mono', monospace; letter-spacing: 1px;
     }
-    .rs-btn:hover:not(:disabled) { opacity: 0.82; }
-    .rs-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .rs-btn-primary   { background: #1f6feb; color: #fff; }
-    .rs-btn-secondary { background: rgba(255,255,255,0.07); color: #cae8ff; }
+    .rs-btn:hover:not(:disabled) { filter: brightness(1.15); }
+    .rs-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .rs-btn-primary   { background: linear-gradient(135deg, #0a4f9e, #1060bf); color: var(--cyan); border: 1px solid rgba(0,212,255,0.3); }
+    .rs-btn-secondary { background: rgba(0,212,255,0.05); color: #5a7a9a; border: 1px solid rgba(0,212,255,0.1); }
 
-    .rs-divider { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 12px 0; }
+    .rs-divider { border: none; border-top: 1px solid rgba(0,212,255,0.08); margin: 12px 0; }
 
-    /* 路線資訊 */
-    .rs-info-row {
-      display: flex; justify-content: space-between;
-      font-size: 13px; padding: 3px 0; color: #8b949e;
-    }
-    .rs-info-val { color: #e6edf3; font-weight: 600; }
+    .rs-info-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: #3a5a78; }
+    .rs-info-val { color: #c8d8f0; font-family: 'Share Tech Mono', monospace; }
 
-    /* 風險摘要條 */
     .rs-risk-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 7px 10px; border-radius: 8px; margin-bottom: 5px; font-size: 13px;
+      padding: 6px 10px; border-radius: 3px; margin-bottom: 4px; font-size: 12px;
+      border-left: 2px solid transparent;
     }
-    .rs-risk-high { background: rgba(248,81,73,0.1); }
-    .rs-risk-mid  { background: rgba(227,179,65,0.1); }
-    .rs-risk-low  { background: rgba(63,185,80,0.1);  }
-    .rs-risk-cnt  { font-weight: 700; font-size: 17px; }
+    .rs-risk-high { background: rgba(255,71,87,0.07);  border-left-color: var(--high); }
+    .rs-risk-mid  { background: rgba(255,165,2,0.07);  border-left-color: var(--mid); }
+    .rs-risk-low  { background: rgba(46,213,115,0.07); border-left-color: var(--low); }
+    .rs-risk-cnt  { font-family: 'Share Tech Mono', monospace; font-size: 18px; }
 
-    /* 高風險樹木清單 */
     .rs-tree-item {
-      padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-      cursor: pointer; transition: background 0.15s;
+      padding: 8px 10px; border-radius: 3px; margin-bottom: 4px;
+      background: rgba(0,212,255,0.02); border: 1px solid rgba(0,212,255,0.08);
+      cursor: pointer; transition: all 0.15s;
     }
-    .rs-tree-item:hover { background: rgba(88,166,255,0.07); border-color: rgba(88,166,255,0.2); }
+    .rs-tree-item:hover { background: rgba(0,212,255,0.06); border-color: rgba(0,212,255,0.2); }
     .rs-tree-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-    .rs-tree-addr { font-size: 11px; color: #8b949e; }
-    .rs-tree-score { font-size: 12px; font-weight: 700; float: right; margin-top: 1px; }
+    .rs-tree-addr { font-size: 11px; color: #3a5a78; font-family: 'Share Tech Mono', monospace; }
+    .rs-tree-score { font-size: 11px; font-family: 'Share Tech Mono', monospace; float: right; }
+
+    /* ══ 使用者位置標記 ══ */
+    @keyframes userPulse {
+      0%   { transform: scale(1);   opacity: 0.8; }
+      100% { transform: scale(3.2); opacity: 0; }
+    }
+    .user-location-marker { position: relative; width: 16px; height: 16px; }
+    .user-loc-core {
+      position: absolute; inset: 3px;
+      border-radius: 50%;
+      background: #4a9eff;
+      border: 2px solid #fff;
+      box-shadow: 0 0 10px rgba(74,158,255,0.8), 0 0 4px rgba(74,158,255,0.5);
+    }
+    .user-loc-ring {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 2px solid #4a9eff;
+      animation: userPulse 2s ease-out infinite;
+    }
+    .user-loc-ring2 { animation-delay: 1s; }
+
+    /* ══ 浮動定位按鈕 ══ */
+    #btn-locate {
+      position: absolute;
+      bottom: 100px; right: 12px;
+      width: 38px; height: 38px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--cyan);
+      font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      z-index: 1000;
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+    #btn-locate:hover { background: var(--cyan-dim); box-shadow: 0 0 12px var(--cyan-glow); }
+    #btn-locate.locating { animation: borderGlow 0.8s ease-in-out infinite; }
+
+    /* ══ 使用目前位置按鈕（側欄內） ══ */
+    #btn-use-location {
+      width: 100%; padding: 7px; margin-bottom: 10px;
+      background: rgba(74,158,255,0.06);
+      border: 1px solid rgba(74,158,255,0.25);
+      border-radius: 3px;
+      color: #4a9eff;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px; letter-spacing: 1px;
+      cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    #btn-use-location:hover { background: rgba(74,158,255,0.12); box-shadow: 0 0 10px rgba(74,158,255,0.2); }
+    #btn-use-location:disabled { opacity: 0.35; cursor: not-allowed; }
   </style>
 </head>
 <body>
+  <div id="scanline-overlay"></div>
 
   <!-- 氣象警告橫幅 -->
   <div id="weather-alert">
-    ⚠️ 氣象警告：<span id="alert-msg"></span>，請注意路樹倒塌風險，外出請多留意！
+    ⚠ ALERT：<span id="alert-msg"></span>，請注意路樹倒塌風險
   </div>
 
   <!-- 頂部導覽列 -->
   <div id="header">
-    <h1>🌳 台北市路樹倒塌風險查詢平台</h1>
-    <button id="btn-route" onclick="toggleRouteSidebar()">🗺️ 路線規劃</button>
+    <div>
+      <h1>⬡ 台北市路樹倒塌風險查詢平台</h1>
+      <div id="header-sub">TAIPEI TREE RISK INTELLIGENCE SYSTEM</div>
+    </div>
+    <button id="btn-route" onclick="toggleRouteSidebar()">◈ 路線規劃</button>
     <div id="weather-widget">
       <div id="weather-icon">🌤️</div>
       <div>
-        <div id="weather-temp">載入中...</div>
+        <div id="weather-temp">LOADING...</div>
         <div id="weather-desc">台北市即時天氣</div>
-        <div id="weather-location" style="font-size:11px;color:#58a6ff;margin-top:2px;min-height:14px"></div>
+        <div id="weather-location"></div>
       </div>
     </div>
   </div>
@@ -330,7 +588,9 @@
     <!-- 載入遮罩 -->
     <div id="loading">
       <div class="spinner"></div>
+      <div id="loading-title">INITIALIZING</div>
       <div id="loading-msg">載入行道樹資料中...</div>
+      <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
     </div>
 
     <!-- 統計面板 -->
@@ -375,7 +635,7 @@
     <!-- 路線規劃側欄 -->
     <div id="route-sidebar">
       <div class="rs-head">
-        <span>🗺️ 路線規劃</span>
+        <span>◈ ROUTE PLANNER</span>
         <button class="rs-close" onclick="toggleRouteSidebar()">✕</button>
       </div>
       <div class="rs-body">
@@ -384,6 +644,7 @@
         <div class="rs-input-wrap">
           <input id="inp-start" type="text" placeholder="輸入地址或地名" autocomplete="off">
         </div>
+        <button id="btn-use-location" onclick="locateUser(true)">◎ 使用目前位置</button>
         <div class="rs-status" id="start-status"></div>
 
         <label class="rs-label">目的地</label>
@@ -406,6 +667,9 @@
         <div id="route-result"></div>
       </div>
     </div>
+
+    <!-- 浮動定位按鈕 -->
+    <button id="btn-locate" title="定位到我的位置" onclick="locateUser()">◎</button>
 
     <!-- 圖例面板 -->
     <div id="legend" class="panel">
@@ -609,13 +873,30 @@
             distSet.add(dist);
           }
 
-          const marker = L.circleMarker([lat, lng], {
-            radius      : meta.radius,
-            fillColor   : meta.color,
-            color       : 'rgba(255,255,255,0.6)',
-            weight      : 1,
-            fillOpacity : 0.85,
-          }).bindPopup(buildPopupHtml(row, level), { maxWidth: 290 });
+          let marker;
+          if (level === 'high') {
+            // 高風險：脈衝動畫 DivIcon
+            marker = L.marker([lat, lng], {
+              icon: L.divIcon({
+                className: '',
+                html: `<div class="pulse-marker">
+                         <div class="pulse-ring"></div>
+                         <div class="pulse-ring pulse-ring2"></div>
+                         <div class="pulse-core"></div>
+                       </div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7],
+              })
+            }).bindPopup(buildPopupHtml(row, level), { maxWidth: 290 });
+          } else {
+            marker = L.circleMarker([lat, lng], {
+              radius      : meta.radius,
+              fillColor   : meta.color,
+              color       : 'rgba(255,255,255,0.3)',
+              weight      : 1,
+              fillOpacity : 0.85,
+            }).bindPopup(buildPopupHtml(row, level), { maxWidth: 290 });
+          }
 
           // 無健檢資料：載入 allMarkers 供未來功能使用，但預設不加入地圖
           if (level !== 'none') marker.addTo(map);
@@ -639,6 +920,7 @@
         });
 
         document.getElementById('loading').classList.add('hidden');
+        document.getElementById('scanline-overlay').style.display = 'none';
       },
 
       error(err) {
@@ -1087,6 +1369,98 @@
   function initRoutePanel() {
     setupGeoInput('inp-start', 'start-status', latlng => { startLatLng = latlng; });
     setupGeoInput('inp-end',   'end-status',   latlng => { endLatLng   = latlng; });
+  }
+
+  // ════════════════════════════════════════
+  // 使用者定位
+  // ════════════════════════════════════════
+  let userLocationMarker = null;
+
+  /**
+   * @param {boolean} fillRoute - true 時同時填入路線出發地
+   */
+  function locateUser(fillRoute = false) {
+    if (!navigator.geolocation) {
+      alert('您的瀏覽器不支援定位功能');
+      return;
+    }
+
+    const btnLocate = document.getElementById('btn-locate');
+    const btnUse    = document.getElementById('btn-use-location');
+    const startSt   = document.getElementById('start-status');
+
+    btnLocate.classList.add('locating');
+    if (btnUse) { btnUse.disabled = true; btnUse.textContent = '◎ 定位中...'; }
+    if (fillRoute) { startSt.className = 'rs-status'; startSt.textContent = '定位中…'; }
+
+    navigator.geolocation.getCurrentPosition(
+      // ── 成功 ──
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = Math.round(pos.coords.accuracy);
+
+        // 移除舊標記
+        if (userLocationMarker) userLocationMarker.remove();
+
+        // 建立脈衝標記
+        userLocationMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div class="user-location-marker">
+                     <div class="user-loc-ring"></div>
+                     <div class="user-loc-ring user-loc-ring2"></div>
+                     <div class="user-loc-core"></div>
+                   </div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+          }),
+          zIndexOffset: 500,
+        }).bindPopup(
+          `<div class="pop-head" style="color:#4a9eff">◎ 您的位置</div>
+           <div class="pop-row">
+             <span class="pop-lbl">精確度</span>
+             <span class="pop-val">± ${acc} m</span>
+           </div>`,
+          { maxWidth: 200 }
+        ).addTo(map);
+
+        // 移動地圖到使用者位置
+        map.setView([lat, lng], 16, { animate: true });
+
+        // 若是從路線側欄觸發，自動填入出發地
+        if (fillRoute) {
+          startLatLng = [lat, lng];
+          document.getElementById('inp-start').value = '目前位置';
+          startSt.className = 'rs-status';
+          startSt.textContent = `✓ 已定位（精確度 ±${acc}m）`;
+
+          // 確保側欄是開的
+          const sidebar = document.getElementById('route-sidebar');
+          if (!sidebar.classList.contains('open')) toggleRouteSidebar();
+        }
+
+        btnLocate.classList.remove('locating');
+        if (btnUse) { btnUse.disabled = false; btnUse.textContent = '◎ 使用目前位置'; }
+      },
+
+      // ── 失敗 ──
+      (err) => {
+        const msgs = {
+          1: '定位權限被拒絕，請在瀏覽器設定中允許存取位置',
+          2: '無法取得位置資訊，請確認裝置 GPS 是否開啟',
+          3: '定位逾時，請稍後再試',
+        };
+        const msg = msgs[err.code] || '定位失敗';
+        if (fillRoute) { startSt.className = 'rs-status rs-err'; startSt.textContent = msg; }
+        else           { alert(msg); }
+
+        btnLocate.classList.remove('locating');
+        if (btnUse) { btnUse.disabled = false; btnUse.textContent = '◎ 使用目前位置'; }
+      },
+
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
   }
 
   // ════════════════════════════════════════
