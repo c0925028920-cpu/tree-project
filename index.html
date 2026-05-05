@@ -438,18 +438,20 @@
     .rs-err    { color: var(--high); }
 
     .rs-suggestions {
-      position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+      position: fixed;
       background: rgba(2,10,22,0.98); border: 1px solid var(--border);
-      border-radius: 3px; z-index: 20; max-height: 150px; overflow-y: auto;
+      border-radius: 3px; z-index: 9999; max-height: 150px; overflow-y: auto;
       box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
     .rs-sug-item {
-      padding: 8px 11px; font-size: 12px; color: #c8d8f0; cursor: pointer;
+      padding: 8px 11px; cursor: pointer;
       border-bottom: 1px solid rgba(0,212,255,0.06);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .rs-sug-item:last-child { border-bottom: none; }
-    .rs-sug-item:hover { background: var(--cyan-dim); color: var(--cyan); }
+    .rs-sug-item:hover { background: var(--cyan-dim); }
+    .rs-sug-item:hover .sug-name { color: var(--cyan); }
+    .sug-name { font-size: 12px; color: #c8d8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sug-addr { font-size: 10px; color: #5a7a9a; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .rs-mode { display: flex; gap: 6px; margin: 10px 0 14px; }
     .rs-mode label {
@@ -498,6 +500,21 @@
     .rs-tree-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
     .rs-tree-addr { font-size: 11px; color: #3a5a78; font-family: 'Share Tech Mono', monospace; }
     .rs-tree-score { font-size: 11px; font-family: 'Share Tech Mono', monospace; float: right; }
+
+    /* ══ 路線選擇卡片 ══ */
+    .rs-route-cards { display: flex; flex-direction: column; gap: 5px; margin-bottom: 4px; }
+    .rs-route-card {
+      padding: 9px 12px; border-radius: 3px; cursor: pointer;
+      border: 1px solid rgba(0,212,255,0.1); background: rgba(0,212,255,0.02);
+      transition: all 0.2s;
+    }
+    .rs-route-card:hover { border-color: rgba(0,212,255,0.25); background: rgba(0,212,255,0.05); }
+    .rs-route-card.active { border-color: var(--cyan); background: rgba(0,212,255,0.08); box-shadow: 0 0 10px rgba(0,212,255,0.08); }
+    .rs-route-card-label { font-size: 12px; font-weight: 700; color: #7a9abf; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+    .rs-route-card.active .rs-route-card-label { color: var(--cyan); }
+    .rs-route-badge { font-size: 9px; padding: 1px 6px; border-radius: 2px; background: rgba(0,212,255,0.15); color: var(--cyan); border: 1px solid rgba(0,212,255,0.3); letter-spacing: 0.5px; }
+    .rs-route-meta { font-size: 11px; color: #3a5a78; font-family: 'Share Tech Mono', monospace; margin-bottom: 4px; }
+    .rs-route-risk-row { display: flex; gap: 10px; font-size: 11px; font-family: 'Share Tech Mono', monospace; }
 
     /* ══ 使用者位置標記 ══ */
     @keyframes userPulse {
@@ -1126,9 +1143,31 @@
   // ════════════════════════════════════════
   const ROUTE_BUFFER_M = 40;
 
-  let routeLayer  = null;
-  let startLatLng = null;
-  let endLatLng   = null;
+  let routeLayers    = [];   // 所有備選路線的 Leaflet layer
+  let routeAnalyses  = [];   // { route, nearby, counts, riskScore }
+  let activeRouteIdx = 0;
+  let startLatLng    = null;
+  let endLatLng      = null;
+  let startPinLayer  = null;
+  let endPinLayer    = null;
+
+  function setPin(existing, latlng, color, label) {
+    if (existing) existing.remove();
+    return L.marker(latlng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="
+          width:28px;height:28px;border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);background:${color};
+          border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);
+          display:flex;align-items:center;justify-content:center;">
+          <span style="transform:rotate(45deg);font-size:11px;font-weight:700;color:#fff">${label}</span>
+        </div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+      })
+    }).addTo(map);
+  }
 
   function toggleRouteSidebar() {
     const sidebar = document.getElementById('route-sidebar');
@@ -1141,24 +1180,35 @@
   function setupGeoInput(inputId, statusId, onSelect) {
     const input  = document.getElementById(inputId);
     const status = document.getElementById(statusId);
-    let timer = null, sugEl = null;
+    let timer = null, sugEl = null, abortCtrl = null;
 
     const removeSug = () => { if (sugEl) { sugEl.remove(); sugEl = null; } };
 
+    const positionSug = () => {
+      if (!sugEl) return;
+      const rect      = input.getBoundingClientRect();
+      sugEl.style.top   = `${rect.bottom + 2}px`;
+      sugEl.style.left  = `${rect.left}px`;
+      sugEl.style.width = `${rect.width}px`;
+    };
+
     input.addEventListener('input', () => {
       clearTimeout(timer);
+      if (abortCtrl) { abortCtrl.abort(); abortCtrl = null; }
       removeSug();
       if (input.value.length < 2) { status.textContent = ''; return; }
       status.textContent = '搜尋中…';
 
       timer = setTimeout(async () => {
+        abortCtrl = new AbortController();
         const q   = input.value.includes('台北') || input.value.includes('臺北')
                     ? input.value : `${input.value} 台北市`;
         const url = `https://nominatim.openstreetmap.org/search?` +
                     `q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=tw`;
         try {
-          const res  = await fetch(url);
+          const res  = await fetch(url, { signal: abortCtrl.signal });
           const data = await res.json();
+          abortCtrl = null;
           status.textContent = '';
           if (!data.length) { status.className = 'rs-status rs-err'; status.textContent = '找不到地址'; return; }
           status.className = 'rs-status';
@@ -1166,13 +1216,16 @@
           sugEl = document.createElement('div');
           sugEl.className = 'rs-suggestions';
           data.forEach(r => {
-            const item = document.createElement('div');
+            const parts = r.display_name.split(',');
+            const name  = parts[0].trim();
+            const addr  = parts.slice(1, 5).map(s => s.trim()).filter(Boolean).join('，');
+            const item  = document.createElement('div');
             item.className = 'rs-sug-item';
-            item.textContent = r.display_name.split(',').slice(0, 3).join(',');
-            item.title       = r.display_name;
+            item.title     = r.display_name;
+            item.innerHTML = `<div class="sug-name">${name}</div><div class="sug-addr">${addr}</div>`;
             item.addEventListener('mousedown', e => {
               e.preventDefault();
-              input.value = r.display_name.split(',')[0];
+              input.value = name;
               removeSug();
               status.textContent = '✓ 已選取';
               status.className   = 'rs-status';
@@ -1180,33 +1233,76 @@
             });
             sugEl.appendChild(item);
           });
-          input.parentElement.appendChild(sugEl);
-        } catch {
+          document.body.appendChild(sugEl);
+          positionSug();
+        } catch (e) {
+          if (e.name === 'AbortError') return;
           status.className   = 'rs-status rs-err';
           status.textContent = '搜尋失敗，請稍後再試';
         }
       }, 500);
     });
 
-    document.addEventListener('click', e => { if (!input.contains(e.target)) removeSug(); });
+    // 保底：blur 時延遲關閉（允許 mousedown → onSelect 先完成）
+    input.addEventListener('blur', () => setTimeout(removeSug, 150));
+
+    document.addEventListener('click', e => {
+      if (!input.contains(e.target) && sugEl && !sugEl.contains(e.target)) removeSug();
+    });
   }
 
   async function queryOSRM(start, end, profile) {
     const url = `https://router.project-osrm.org/route/v1/${profile}/` +
                 `${start[1]},${start[0]};${end[1]},${end[0]}` +
-                `?overview=full&geometries=geojson`;
+                `?overview=full&geometries=geojson&alternatives=true`;
     const res  = await fetch(url);
     const data = await res.json();
     if (data.code !== 'Ok') throw new Error('查無路線，請確認地點是否可到達');
-    return data.routes[0];
+    return data.routes; // 回傳全部備選路線陣列
   }
 
-  function drawRoute(geometry) {
-    if (routeLayer) routeLayer.remove();
-    routeLayer = L.geoJSON(geometry, {
-      style: { color: '#58a6ff', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
-    }).addTo(map);
-    map.fitBounds(routeLayer.getBounds(), { padding: [60, 80] });
+  function drawAllRoutes(analyses, activeIdx) {
+    routeLayers.forEach(l => l.remove());
+    routeLayers = [];
+    // 先畫非推薦路線（底層），再畫推薦路線（最上層）
+    const order = analyses.map((_, i) => i).filter(i => i !== activeIdx).concat([activeIdx]);
+    order.forEach(i => {
+      const isActive = i === activeIdx;
+      const layer = L.geoJSON(analyses[i].route.geometry, {
+        style: {
+          color   : isActive ? '#00d4ff' : 'rgba(90,120,160,0.45)',
+          weight  : isActive ? 5 : 3,
+          opacity : isActive ? 0.9 : 0.55,
+          lineCap : 'round', lineJoin: 'round',
+          dashArray: isActive ? null : '6,6',
+        }
+      }).addTo(map);
+      routeLayers[i] = layer;
+    });
+    if (routeLayers[activeIdx]) {
+      map.fitBounds(routeLayers[activeIdx].getBounds(), { padding: [60, 80] });
+    }
+  }
+
+  function selectRoute(idx) {
+    activeRouteIdx = idx;
+    routeLayers.forEach((layer, i) => {
+      const isActive = i === idx;
+      layer.setStyle({
+        color   : isActive ? '#00d4ff' : 'rgba(90,120,160,0.45)',
+        weight  : isActive ? 5 : 3,
+        opacity : isActive ? 0.9 : 0.55,
+        dashArray: isActive ? null : '6,6',
+      });
+      if (isActive) layer.bringToFront();
+    });
+    const nearbySet = new Set(routeAnalyses[idx].nearby);
+    applyRouteHighlight(nearbySet);
+    document.querySelectorAll('.rs-route-card').forEach((card, i) => {
+      card.classList.toggle('active', i === idx);
+    });
+    document.getElementById('route-detail').innerHTML =
+      buildRouteDetail(routeAnalyses[idx]);
   }
 
   function ptSegDist(pLat, pLng, aLat, aLng, bLat, bLng) {
@@ -1248,46 +1344,67 @@
   }
 
   function applyRouteHighlight(nearbySet) {
+    // 主表風險樹：只留沿路的
     allMarkers.forEach(item => {
-      const meta = RISK_META[item.level];
       if (nearbySet.has(item)) {
-        item.marker.setStyle({ radius: meta.radius + 4, fillOpacity: 1, weight: 3, color: '#fff' });
+        item.marker.addTo(map);
+        if (item.marker instanceof L.CircleMarker) {
+          const meta = RISK_META[item.level];
+          item.marker.setStyle({ radius: meta.radius + 4, fillOpacity: 1, weight: 3, color: '#fff' });
+        } else {
+          const el = item.marker.getElement();
+          if (el) el.style.opacity = '1';
+        }
         item.marker.bringToFront();
       } else {
-        item.marker.setStyle({ radius: meta.radius, fillOpacity: 0.1, weight: 0.5, color: 'rgba(255,255,255,0.15)' });
+        item.marker.remove();
       }
     });
+    // 褐根病通報 & 列管保護老樹：路線模式下全部隱藏
+    brownrotMarkers.forEach(({ marker }) => marker.remove());
+    protectedMarkers.forEach(m => m.remove());
   }
 
   function resetHighlight() {
+    // 主表風險樹：依篩選條件還原
     allMarkers.forEach(item => {
-      const meta = RISK_META[item.level];
-      item.marker.setStyle({
-        radius: meta.radius,
-        fillOpacity: 0.85,
-        weight: 1,
-        color: 'rgba(255,255,255,0.6)'
-      });
+      if (item.level === 'none') return;
+      item.marker.addTo(map);
+      if (item.marker instanceof L.CircleMarker) {
+        const meta = RISK_META[item.level];
+        item.marker.setStyle({ radius: meta.radius, fillOpacity: 0.85, weight: 1, color: 'rgba(255,255,255,0.6)' });
+      } else {
+        const el = item.marker.getElement();
+        if (el) el.style.opacity = '1';
+      }
     });
+    // 褐根病通報 & 列管保護老樹：依各自篩選狀態還原
+    applyBrownrotFilter();
+    applyProtectedFilter();
   }
 
-  function renderRouteResult(route, nearby) {
-    const distKm = (route.distance / 1000).toFixed(1);
-    const tmode  = document.querySelector('input[name="tmode"]:checked').value;
-    const speed  = { foot: 5, driving: 40, bike: 15 }[tmode] ?? 5;
-    const mins   = Math.round(route.distance / 1000 / speed * 60);
-
-    const counts   = { high: 0, mid: 0, low: 0 };
-    nearby.forEach(t => { if (t.level !== 'none') counts[t.level]++; });
-    const highTrees = nearby.filter(t => t.level === 'high');
+  function buildRouteDetail(analysis) {
+    const tmode     = document.querySelector('input[name="tmode"]:checked').value;
+    const speed     = { foot: 5, driving: 40, bike: 15 }[tmode] ?? 5;
     const modeLabel = { foot: '步行', driving: '開車', bike: '騎車' }[tmode];
+    const distKm    = (analysis.route.distance / 1000).toFixed(1);
+    const mins      = Math.round(analysis.route.distance / 1000 / speed * 60);
+    const { counts, nearby, endAddr } = analysis;
+    const highTrees = nearby.filter(t => t.level === 'high');
 
-    document.getElementById('route-result').innerHTML = `
+    const endAddrHtml = endAddr
+      ? `<div class="rs-info-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+           <span style="color:#5a7a9a;font-size:10px;letter-spacing:1px">實際導航終點</span>
+           <span class="rs-info-val" style="font-size:11px;color:#00d4ff;word-break:break-all">${endAddr}</span>
+         </div>`
+      : '';
+
+    return `
       <hr class="rs-divider">
       <div class="panel-title">路線資訊</div>
       <div class="rs-info-row"><span>距離</span><span class="rs-info-val">${distKm} km</span></div>
       <div class="rs-info-row"><span>${modeLabel}預估</span><span class="rs-info-val">${mins} 分鐘</span></div>
-
+      ${endAddrHtml}
       <hr class="rs-divider">
       <div class="panel-title">沿路樹木風險（${ROUTE_BUFFER_M}m 範圍）</div>
       <div class="rs-risk-row rs-risk-high">
@@ -1302,7 +1419,6 @@
         <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
         <span class="rs-risk-cnt c-low">${counts.low}</span>
       </div>
-
       ${highTrees.length ? `
         <hr class="rs-divider">
         <div class="panel-title">高/重風險樹木（點擊定位）</div>
@@ -1314,28 +1430,76 @@
             <div class="rs-tree-addr">${addr}</div>
           </div>`;
         }).join('')}
-      ` : `<p style="font-size:13px;color:#3fb950;text-align:center;padding:12px 0">
-            ✅ 此路線沿途無高/重風險樹木
-           </p>`}
+      ` : `<p style="font-size:12px;color:#3fb950;text-align:center;padding:12px 0">✅ 此路線沿途無高/重風險樹木</p>`}
     `;
   }
 
-  function zoomToTree(lat, lng) {
+  function renderRouteResult(analyses, endAddr) {
+    const tmode     = document.querySelector('input[name="tmode"]:checked').value;
+    const speed     = { foot: 5, driving: 40, bike: 15 }[tmode] ?? 5;
+    const modeLabel = { foot: '步行', driving: '開車', bike: '騎車' }[tmode];
+    const cardLabels = ['⭐ 推薦路線', '路線 B', '路線 C'];
+
+    const cardsHtml = analyses.map((a, i) => {
+      const distKm = (a.route.distance / 1000).toFixed(1);
+      const mins   = Math.round(a.route.distance / 1000 / speed * 60);
+      const label  = cardLabels[i] || `路線 ${String.fromCharCode(65 + i)}`;
+      return `
+        <div class="rs-route-card ${i === 0 ? 'active' : ''}" onclick="selectRoute(${i})">
+          <div class="rs-route-card-label">${label}
+            ${i === 0 ? '<span class="rs-route-badge">最低風險</span>' : ''}
+          </div>
+          <div class="rs-route-meta">${distKm} km・${modeLabel} ${mins} 分</div>
+          <div class="rs-route-risk-row">
+            <span class="c-high">高 ${a.counts.high}</span>
+            <span class="c-mid">中 ${a.counts.mid}</span>
+            <span class="c-low">低 ${a.counts.low}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('route-result').innerHTML = `
+      <hr class="rs-divider">
+      <div class="panel-title">建議路線${analyses.length > 1 ? `（共 ${analyses.length} 條）` : ''}</div>
+      <div class="rs-route-cards">${cardsHtml}</div>
+      <div id="route-detail">${buildRouteDetail(analyses[0])}</div>
+    `;
+  }
+
+
+function zoomToTree(lat, lng) {
     map.setView([lat, lng], 17, { animate: true });
     const item = allMarkers.find(m => m.latlng[0] === lat && m.latlng[1] === lng);
     if (item) setTimeout(() => item.marker.openPopup(), 350);
   }
 
   function clearRoute() {
-    if (routeLayer) { routeLayer.remove(); routeLayer = null; }
+    routeLayers.forEach(l => l.remove());
+    routeLayers   = [];
+    routeAnalyses = [];
+    activeRouteIdx = 0;
+    if (startPinLayer) { startPinLayer.remove(); startPinLayer = null; }
+    if (endPinLayer)   { endPinLayer.remove();   endPinLayer   = null; }
     resetHighlight();
     startLatLng = endLatLng = null;
-    document.getElementById('route-result').innerHTML       = '';
+    document.getElementById('route-result').innerHTML        = '';
     document.getElementById('btn-clear-route').style.display = 'none';
-    document.getElementById('start-status').textContent    = '';
-    document.getElementById('end-status').textContent      = '';
-    document.getElementById('inp-start').value             = '';
-    document.getElementById('inp-end').value               = '';
+    document.getElementById('start-status').textContent      = '';
+    document.getElementById('end-status').textContent        = '';
+    document.getElementById('inp-start').value               = '';
+    document.getElementById('inp-end').value                 = '';
+  }
+
+  async function reverseGeocode(lat, lng) {
+    try {
+      const res  = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=zh-TW`
+      );
+      const data = await res.json();
+      if (!data.display_name) return null;
+      // 取前三段（去掉國家）
+      return data.display_name.split(',').slice(0, 3).map(s => s.trim()).join('，');
+    } catch { return null; }
   }
 
   async function handleRouteSearch() {
@@ -1349,13 +1513,35 @@
 
     try {
       const tmode = document.querySelector('input[name="tmode"]:checked').value;
-      const route = await queryOSRM(startLatLng, endLatLng, tmode);
+      const [routes, endAddr] = await Promise.all([
+        queryOSRM(startLatLng, endLatLng, tmode),
+        reverseGeocode(endLatLng[0], endLatLng[1]),
+      ]);
 
-      drawRoute(route.geometry);
-      const nearby    = analyzeRouteRisk(route.geometry.coordinates);
-      const nearbySet = new Set(nearby);
-      applyRouteHighlight(nearbySet);
-      renderRouteResult(route, nearby);
+      // 分析每條路線的風險
+      const analyses = routes.map(route => {
+        const nearby = analyzeRouteRisk(route.geometry.coordinates);
+        const counts = { high: 0, mid: 0, low: 0 };
+        nearby.forEach(t => { if (t.level !== 'none') counts[t.level]++; });
+        const riskScore = counts.high * 10 + counts.mid * 3 + counts.low;
+        return { route, nearby, counts, riskScore, endAddr };
+      });
+
+      // 依風險分數由低到高排序（第一條 = 推薦路線）
+      analyses.sort((a, b) => a.riskScore - b.riskScore);
+      routeAnalyses  = analyses;
+      activeRouteIdx = 0;
+
+      // 起終點標記（貼齊推薦路線的實際端點）
+      const bestCoords = analyses[0].route.geometry.coordinates;
+      const snapStart  = [bestCoords[0][1], bestCoords[0][0]];
+      const snapEnd    = [bestCoords[bestCoords.length - 1][1], bestCoords[bestCoords.length - 1][0]];
+      startPinLayer = setPin(startPinLayer, snapStart, '#3fb950', 'S');
+      endPinLayer   = setPin(endPinLayer,   snapEnd,   '#00d4ff', 'E');
+
+      drawAllRoutes(analyses, 0);
+      applyRouteHighlight(new Set(analyses[0].nearby));
+      renderRouteResult(analyses, endAddr);
       document.getElementById('btn-clear-route').style.display = '';
 
     } catch (err) {
