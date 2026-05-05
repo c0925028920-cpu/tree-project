@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>尋找你的「樹」適圈——台北市行道樹病害調查</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700;900&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --cream: #F5F0E8;
+    --dark: #1A1A14;
+    --brown: #8B4513;
+    --red: #C0392B;
+    --olive: #4A5240;
+    --gold: #C9A84C;
+    --light-brown: #D4A76A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--cream);
+    font-family: 'Noto Sans TC', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    position: relative;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .hero video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+    filter: saturate(0.8) brightness(0.7);
+  }
+
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(26,26,20,0.1) 0%,
+      rgba(26,26,20,0.05) 30%,
+      rgba(26,26,20,0.5) 75%,
+      rgba(26,26,20,1) 100%
+    );
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    padding: 0 2rem;
+    max-width: 900px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeUp 1.2s ease 0.5s forwards;
+  }
+
+  .hero-tag {
+    display: inline-block;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    padding: 6px 16px;
+    margin-bottom: 2rem;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 300;
+  }
+
+  .hero h1 {
+    font-family: 'Noto Serif TC', serif;
+    font-weight: 900;
+    font-size: clamp(2rem, 4.5vw, 5rem);
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    color: var(--cream);
+    margin-bottom: 1.5rem;
+    white-space: nowrap;
+  }
+
+  .hero h1 span {
+    color: var(--red);
+  }
+
+  .hero-sub {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    font-weight: 300;
+    color: rgba(245,240,232,0.75);
+    line-height: 1.8;
+    max-width: 600px;
+    margin: 0 auto 3rem;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    animation: fadeUp 1s ease 1.5s forwards;
+  }
+
+  .scroll-hint span {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: rgba(245,240,232,0.5);
+  }
+
+  .scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--gold), transparent);
+    animation: scrollPulse 2s ease-in-out infinite;
+  }
+
+  /* ===== STATS BAND ===== */
+  .stats-band {
+    background: var(--dark);
+    border-top: 1px solid rgba(201,168,76,0.2);
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+    padding: 3rem 2rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 900px;
+    margin: 0 auto;
+    gap: 0;
+  }
+
+  .stat-item {
+    text-align: center;
+    padding: 1.5rem;
+    border-right: 1px solid rgba(245,240,232,0.1);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s ease;
+  }
+
+  .stat-item:last-child { border-right: none; }
+  .stat-item.visible { opacity: 1; transform: translateY(0); }
+
+  .stat-num {
+    font-family: 'Noto Serif TC', serif;
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 900;
+    color: var(--red);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: rgba(245,240,232,0.6);
+    letter-spacing: 0.05em;
+    line-height: 1.6;
+  }
+
+  /* ===== SECTION ===== */
+  .section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 6rem 2rem;
+  }
+
+  .section-header {
+    margin-bottom: 3rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.7s ease;
+  }
+
+  .section-header.visible { opacity: 1; transform: translateY(0); }
+
+  .section-num {
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    font-weight: 300;
+  }
+
+  .section-title {
+    font-family: 'Noto Serif TC', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--cream);
+    margin-bottom: 1rem;
+  }
+
+  .section-desc {
+    font-size: 15px;
+    color: rgba(245,240,232,0.65);
+    line-height: 1.9;
+    max-width: 600px;
+  }
+
+  /* ===== CHART CONTAINERS ===== */
+  .chart-wrap {
+    background: rgba(245,240,232,0.03);
+    border: 1px solid rgba(245,240,232,0.08);
+    border-radius: 2px;
+    padding: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.7s ease 0.2s;
+  }
+
+  .chart-wrap.visible { opacity: 1; transform: translateY(0); }
+
+  .chart-caption {
+    font-size: 11px;
+    color: rgba(245,240,232,0.4);
+    margin-top: 1.5rem;
+    line-height: 1.6;
+    letter-spacing: 0.03em;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 1.5rem;
+    font-size: 12px;
+    color: rgba(245,240,232,0.6);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* ===== MAP ===== */
+  #mapTaipei {
+    height: 520px;
+    border-radius: 2px;
+    filter: saturate(0.8);
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    width: 60px;
+    height: 1px;
+    background: var(--gold);
+    margin: 0 auto 4rem;
+    opacity: 0.4;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    border-top: 1px solid rgba(245,240,232,0.08);
+    padding: 3rem 2rem;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(245,240,232,0.3);
+    line-height: 2;
+  }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* chart ticks */
+  .chart-wrap canvas { max-height: 340px; }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <video autoplay muted loop playsinline>
+    <source src="15653110_3840_2160_30fps.mp4" type="video/mp4">
+  </video>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-tag">專題報導</div>
+    <h1>尋找你的<span>「樹」</span>適圈</h1>
+    <p class="hero-sub">
+      風一來，全台緊張，樹倒再補樹的循環什麼時候才會斷？<br>
+      在台北市密集的綠蔭之下，一場宛如「樹界黑死病」的疾病正在蔓延
+    </p>
+  </div>
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    <span>向下捲動</span>
+  </div>
+</section>
+
+<!-- STATS -->
+<div style="background: var(--dark); padding: 4rem 2rem 0;">
+  <div class="stats-band">
+    <div class="stat-item">
+      <div class="stat-num">59%</div>
+      <div class="stat-label">台北市林木疫情通報<br>與褐根病有關</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">3,628</div>
+      <div class="stat-label">2016–2026年<br>台北市褐根病通報筆數</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">10年</div>
+      <div class="stat-label">法律授權至政府建立<br>認證制度的等待時間</div>
+    </div>
+  </div>
+</div>
+
+<!-- CHART 1: 各類病害趨勢 -->
+<section class="section">
+  <div class="section-header">
+    <div class="section-num">01 — 病害趨勢</div>
+    <h2 class="section-title">台北市樹木病害通報<br>褐根病10年占比最高</h2>
+    <p class="section-desc">
+      2016年至2025年間，台北市林木疫情通報資料顯示，褐根病始終是最大宗的病害，佔所有通報的近六成，且數量持續攀升，遠超其他病害種類。
+    </p>
+  </div>
+  <div class="chart-wrap" style="padding:0; overflow:hidden;">
+    <div class="flourish-embed flourish-chart" data-src="visualisation/28490767"><script src="https://public.flourish.studio/resources/embed.js"></script><noscript><img src="https://public.flourish.studio/visualisation/28490767/thumbnail" width="100%" alt="visualization" /></noscript></div>
+  </div>
+  <p class="chart-caption" style="margin-top:1rem;">資料來源：農業部林業試驗所林木疫情鑑定與資訊中心（2016–2025，臺北市）</p>
+</section>
+
+<!-- CHART 2: 行政區 -->
+<section class="section" style="padding-top: 0;">
+  <div class="divider"></div>
+  <div class="section-header">
+    <div class="section-num">02 — 地理分布</div>
+    <h2 class="section-title">中正、松山、信義<br>是褐根病的重災區</h2>
+    <p class="section-desc">
+      台北市十二個行政區中，中正區的褐根病通報數達946筆，遠超其他行政區。這些正是人口最密集、行道樹最多的市中心地帶。
+    </p>
+  </div>
+  <div class="chart-wrap" style="padding:0; overflow:hidden;">
+    <div class="flourish-embed flourish-chart" data-src="visualisation/28491123"><script src="https://public.flourish.studio/resources/embed.js"></script><noscript><img src="https://public.flourish.studio/visualisation/28491123/thumbnail" width="100%" alt="visualization" /></noscript></div>
+  </div>
+  <p class="chart-caption" style="margin-top:1rem;">資料來源：農業部林業試驗所林木疫情鑑定與資訊中心（2016–2026，臺北市）。行政區係依通報座標概估，僅供參考。</p>
+</section>
+
+<!-- MAP -->
+<section class="section" style="padding-top: 0;">
+  <div class="divider"></div>
+  <div class="section-header">
+    <div class="section-num">03 — 通報點位</div>
+    <h2 class="section-title">每一個點，<br>都是一棵生病的樹</h2>
+    <p class="section-desc">
+      下圖標記的是台北市褐根病通報的地理位置，每個紅點代表一處通報地點。點位遍布全市，但在市中心與東區尤為密集。
+    </p>
+  </div>
+  <div class="chart-wrap" style="padding:0; overflow:hidden;">
+    <div class="flourish-embed flourish-chart" data-src="visualisation/28484900"><script src="https://public.flourish.studio/resources/embed.js"></script><noscript><img src="https://public.flourish.studio/visualisation/28484900/thumbnail" width="100%" alt="visualization" /></noscript></div>
+  </div>
+  <p class="chart-caption" style="margin-top:1rem;">＊同一地點可能有多筆通報，此圖僅顯示唯一座標點位。資料來源：農業部林業試驗所林木疫情鑑定與資訊中心</p>
+</section>
+
+<footer>
+  資料來源：農業部林業試驗所林木疫情鑑定與資訊中心<br>
+  本報導為政治大學傳播碩士學位學程課堂作業
+</footer>
+
+ <script>
+  // Scroll 動畫觸發
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.section-header, .stat-item, .chart-wrap').forEach(el => io.observe(el));
+
+  // 數字跑馬燈動畫
+  const statConfig = [
+    { end: 59,   suffix: '%',  display: null    },
+    { end: 3628, suffix: '',   display: '3,628' },
+    { end: 10,   suffix: '年', display: null    }
+  ];
+
+  function countUp(el, end, suffix, display) {
+    const duration = 1800;
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min((now - t0) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const val = Math.floor(ease * end);
+      el.textContent = (p >= 1 && display) ? display : val.toLocaleString() + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    })(t0);
+  }
+
+  const nums = document.querySelectorAll('.stat-num');
+  const numObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const i = [...nums].indexOf(e.target);
+        setTimeout(() => countUp(e.target, statConfig[i].end, statConfig[i].suffix, statConfig[i].display), i * 200);
+        numObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  nums.forEach(el => numObserver.observe(el));
+  </script>
+  </body>
+  </html>//
