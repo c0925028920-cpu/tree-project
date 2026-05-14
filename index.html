@@ -7,6 +7,8 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- MapLibre GL JS（3D 地圖） -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
   <!-- 科技感字型 -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
@@ -381,6 +383,63 @@
     #btn-route:hover  { background: var(--cyan-dim); box-shadow: 0 0 10px var(--cyan-glow); }
     #btn-route.active { background: var(--cyan-dim); box-shadow: 0 0 10px var(--cyan-glow); }
 
+    /* ══ 3D 切換按鈕 ══ */
+    #btn-3d {
+      background: rgba(74,158,255,0.06);
+      border: 1px solid rgba(74,158,255,0.25);
+      border-radius: 4px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 1px;
+      padding: 7px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      margin-right: 12px;
+      transition: all 0.2s;
+    }
+    #btn-3d:hover  { background: rgba(74,158,255,0.12); box-shadow: 0 0 10px rgba(74,158,255,0.25); }
+    #btn-3d.active {
+      background: rgba(74,158,255,0.15);
+      color: #7bbfff;
+      border-color: var(--blue);
+      box-shadow: 0 0 12px rgba(74,158,255,0.35);
+    }
+
+    /* ══ 3D 地圖容器 ══ */
+    #map-3d {
+      position: absolute; inset: 0;
+      display: none;
+      width: 100%; height: 100%;
+    }
+
+    /* ══ MapLibre 彈出視窗深色主題 ══ */
+    .tree-popup-3d .maplibregl-popup-content {
+      background: rgba(2,12,26,0.96);
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 6px;
+      padding: 14px 16px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.7), 0 0 12px rgba(0,212,255,0.1);
+      min-width: 210px;
+    }
+    .tree-popup-3d .maplibregl-popup-tip {
+      border-top-color: rgba(0,212,255,0.25);
+    }
+    .tree-popup-3d .maplibregl-popup-close-button {
+      color: #8b949e; font-size: 16px; line-height: 1; padding: 4px 6px;
+    }
+    .tree-popup-3d .maplibregl-popup-close-button:hover { color: var(--cyan); }
+    .maplibregl-ctrl-group {
+      background: rgba(2,12,26,0.9) !important;
+      border: 1px solid rgba(0,212,255,0.2) !important;
+    }
+    .maplibregl-ctrl-group button {
+      background-color: transparent !important;
+      color: var(--cyan) !important;
+    }
+    .maplibregl-ctrl-group button:hover { background: rgba(0,212,255,0.1) !important; }
+
     /* ══ 路線側欄 ══ */
     #route-sidebar {
       position: absolute;
@@ -587,6 +646,7 @@
       <h1>⬡ 台北市路樹倒塌風險查詢平台</h1>
       <div id="header-sub">TAIPEI TREE RISK INTELLIGENCE SYSTEM</div>
     </div>
+    <button id="btn-3d" onclick="toggle3D()">⬡ 3D 模式</button>
     <button id="btn-route" onclick="toggleRouteSidebar()">◈ 路線規劃</button>
     <div id="weather-widget">
       <div id="weather-icon">🌤️</div>
@@ -601,6 +661,7 @@
   <!-- 地圖區域 -->
   <div id="map-container">
     <div id="map"></div>
+    <div id="map-3d"></div>
 
     <!-- 載入遮罩 -->
     <div id="loading">
@@ -706,6 +767,8 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
@@ -768,6 +831,7 @@
   // 標記管理
   // ════════════════════════════════════════
   const allMarkers = []; // { marker, level, dist, latlng, treeData }
+  let   allTreeData = []; // 供 3D 地圖使用
 
   /** 健檢扣分轉 0–100 風險進度條（扣分為負，越低越危險） */
   function deductionToBar(val) {
@@ -881,6 +945,8 @@
           const lng = parseFloat(row['lng']);
           if (!isFinite(lat) || !isFinite(lng)) return;
 
+          allTreeData.push(row); // 供 3D 地圖使用
+
           const level = getRiskLevel(row);
           const dist  = row['dist'] || '未知';
           const meta  = RISK_META[level];
@@ -965,6 +1031,9 @@
       if (levelOk && distOk) marker.addTo(map);
       else                   marker.remove();
     });
+
+    // 3D 模式同步篩選（直接呼叫，不走 debounce 以即時反映）
+    if (is3DMode) do3DUpdate();
   }
 
   ['chk-high','chk-mid','chk-low'].forEach(id => {
@@ -1614,6 +1683,30 @@ function zoomToTree(lat, lng) {
         // 移動地圖到使用者位置
         map.setView([lat, lng], 16, { animate: true });
 
+        // 3D 模式：同步移動 MapLibre 地圖並加上定位標記
+        if (is3DMode && map3d) {
+          map3d.flyTo({ center: [lng, lat], zoom: 16 });
+          const userGeoJSON = {
+            type: 'FeatureCollection',
+            features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }]
+          };
+          const addUserLoc = () => {
+            if (map3d.getSource('user-loc')) {
+              map3d.getSource('user-loc').setData(userGeoJSON);
+            } else {
+              map3d.addSource('user-loc', { type: 'geojson', data: userGeoJSON });
+              map3d.addLayer({ id: 'user-loc-glow', type: 'circle', source: 'user-loc',
+                paint: { 'circle-radius': 22, 'circle-color': 'rgba(74,158,255,0.18)', 'circle-blur': 1 } });
+              map3d.addLayer({ id: 'user-loc-dot', type: 'circle', source: 'user-loc',
+                paint: { 'circle-radius': 8, 'circle-color': '#4a9eff',
+                         'circle-stroke-width': 2, 'circle-stroke-color': 'rgba(255,255,255,0.9)',
+                         'circle-opacity': 0.95 } });
+            }
+          };
+          if (map3d.loaded()) addUserLoc();
+          else map3d.on('load', addUserLoc);
+        }
+
         // 若是從路線側欄觸發，自動填入出發地
         if (fillRoute) {
           startLatLng = [lat, lng];
@@ -1854,6 +1947,542 @@ function zoomToTree(lat, lng) {
     pitMarkers.forEach(m => show ? m.addTo(map) : m.remove());
   }
   document.getElementById('chk-pit').addEventListener('change', applyPitFilter);
+
+  // ════════════════════════════════════════
+  // 3D 地圖（MapLibre GL JS）
+  // ════════════════════════════════════════
+  let map3d      = null;
+  let is3DMode   = false;
+
+  function build3DGeoJSON() {
+    const features = [];
+    allTreeData.forEach(row => {
+      const lat   = parseFloat(row['lat']);
+      const lng   = parseFloat(row['lng']);
+      const level = getRiskLevel(row);
+      if (!isFinite(lat) || !isFinite(lng) || level === 'none') return;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: {
+          level,
+          height    : Math.max(parseFloat(row['tree_height']) || 5, 3),
+          tree_type : row['tree_type'] || '未知',
+          dist      : row['dist'] || '',
+          region    : row['region'] || '',
+          risk      : row['health_風險結果'] || '',
+          diameter  : row['diameter'] || '',
+          deduction : row['health_健檢扣分'] || '',
+          factor    : row['health_健檢關鍵因子'] || '',
+        }
+      });
+    });
+    return { type: 'FeatureCollection', features };
+  }
+
+  function initMap3D(centerLat, centerLng, zoom) {
+    map3d = new maplibregl.Map({
+      container : 'map-3d',
+      style     : 'https://tiles.openfreemap.org/styles/dark',
+      center    : [centerLng, centerLat],
+      zoom      : zoom,
+      pitch     : 45,
+      bearing   : -10,
+      antialias : true,
+    });
+
+    map3d.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+
+    map3d.on('load', () => {
+      // 3D 建築物立面
+      try {
+        map3d.addLayer({
+          id            : 'buildings-3d',
+          type          : 'fill-extrusion',
+          source        : 'openmaptiles',
+          'source-layer': 'building',
+          minzoom       : 14,
+          paint: {
+            'fill-extrusion-color'  : 'rgba(18,36,72,0.88)',
+            'fill-extrusion-height' : ['coalesce', ['get', 'render_height'], 5],
+            'fill-extrusion-base'   : ['coalesce', ['get', 'render_min_height'], 0],
+            'fill-extrusion-opacity': 0.85,
+          }
+        });
+      } catch(e) { /* 建築資料不可用時忽略 */ }
+
+      // 路樹資料
+      const geojson = build3DGeoJSON();
+      map3d.addSource('trees3d', { type: 'geojson', data: geojson });
+
+      // 光暈層（低透明度大圓圈）
+      map3d.addLayer({
+        id: 'trees-glow', type: 'circle', source: 'trees3d',
+        paint: {
+          'circle-radius': ['case',
+            ['==', ['get', 'level'], 'high'], 16,
+            ['==', ['get', 'level'], 'mid'],  11,
+            8
+          ],
+          'circle-color': ['case',
+            ['==', ['get', 'level'], 'high'], 'rgba(248,81,73,0.22)',
+            ['==', ['get', 'level'], 'mid'],  'rgba(227,179,65,0.18)',
+            'rgba(63,185,80,0.15)'
+          ],
+          'circle-blur': 1,
+        }
+      });
+
+      // 主點層
+      map3d.addLayer({
+        id: 'trees-dot', type: 'circle', source: 'trees3d',
+        paint: {
+          'circle-radius': ['case',
+            ['==', ['get', 'level'], 'high'], 7,
+            ['==', ['get', 'level'], 'mid'],  5,
+            4
+          ],
+          'circle-color': ['case',
+            ['==', ['get', 'level'], 'high'], '#f85149',
+            ['==', ['get', 'level'], 'mid'],  '#e3b341',
+            '#3fb950'
+          ],
+          'circle-opacity'      : 0.92,
+          'circle-stroke-width' : 1,
+          'circle-stroke-color' : 'rgba(255,255,255,0.22)',
+        }
+      });
+
+      // 點擊彈出視窗
+      map3d.on('click', 'trees-dot', e => {
+        const p    = e.features[0].properties;
+        const meta = RISK_META[p.level];
+        new maplibregl.Popup({ closeButton: true, className: 'tree-popup-3d' })
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <div style="font-family:'Microsoft JhengHei',sans-serif;font-size:13px;color:#c8d8f0">
+              <div style="font-weight:700;margin-bottom:10px;font-size:14px;color:${meta.color}">🌳 ${p.tree_type}</div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">行政區</span><span>${p.dist}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">道路</span><span>${p.region}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">官方風險</span><span style="color:${meta.color}">${p.risk || '未做健檢'}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">胸徑</span><span>${p.diameter ? p.diameter + ' cm' : '—'}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">樹高</span><span>${p.height} m</span></div>
+              ${p.deduction && p.deduction !== 'NA' ? `<div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">健檢扣分</span><span style="color:${meta.color}">${p.deduction} 分</span></div>` : ''}
+              ${p.factor && p.factor !== 'NA' ? `<div style="margin-top:8px;font-size:11px;color:#8b949e;line-height:1.5">關鍵因子：${p.factor}</div>` : ''}
+              <div style="text-align:center;margin-top:10px;padding:4px 10px;border-radius:3px;font-size:11px;font-weight:700;border:1px solid ${meta.color};color:${meta.color};background:rgba(0,0,0,0.3)">${meta.label}</div>
+            </div>`)
+          .addTo(map3d);
+      });
+
+      map3d.on('mouseenter', 'trees-dot', () => { map3d.getCanvas().style.cursor = 'pointer'; });
+      map3d.on('mouseleave', 'trees-dot', () => { map3d.getCanvas().style.cursor = ''; });
+
+      // zoom ≥ 15 → 切換為 Three.js 立體樹木
+      map3d.addLayer(tree3DCustomLayer);
+      map3d.on('moveend', schedule3DUpdate);
+      map3d.on('zoomend', schedule3DUpdate);
+      schedule3DUpdate();
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  // Realistic 3D Tree Layer（Three.js + MapLibre custom layer）
+  // zoom ≥ 15 啟用；依樹種顯示不同幾何體
+  // ════════════════════════════════════════════════
+  const TREE3D_ORIGIN = [121.55, 25.05];
+
+  // ── pseudo-random（確定性，依座標 seed） ──
+  function pr(seed, idx) {
+    const x = Math.sin(seed * 9301 + idx * 49297 + 0.1) * 10000;
+    return x - Math.floor(x);
+  }
+
+  // ── 風險色混 ──
+  function tintHex(hex, level) {
+    let r = (hex>>16)&0xff, g = (hex>>8)&0xff, b = hex&0xff;
+    if (level === 'high')
+      return ((Math.round(r*.50+185*.50)<<16)|(Math.round(g*.50+38*.50)<<8)|Math.round(b*.50+28*.50));
+    if (level === 'mid')
+      return ((Math.round(r*.55+168*.45)<<16)|(Math.round(g*.55+128*.45)<<8)|Math.round(b*.55+22*.45));
+    return hex;
+  }
+
+  // ── 幾何體輔助 ──
+  function mkCylM(rTop, rBot, h, color) {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(rTop, rBot, h, 8),
+      new THREE.MeshLambertMaterial({ color })
+    );
+    m.position.y = h / 2;
+    return m;
+  }
+  function mkSphM(r, color, x, y, z) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 8, 6),
+      new THREE.MeshLambertMaterial({ color })
+    );
+    m.position.set(x, y, z);
+    return m;
+  }
+  function mkConeM(r, h, color, y) {
+    const m = new THREE.Mesh(
+      new THREE.ConeGeometry(r, h, 8),
+      new THREE.MeshLambertMaterial({ color })
+    );
+    m.position.y = y + h / 2;
+    return m;
+  }
+
+  // ── 樹木 builder 們 ──
+
+  // 榕樹型：廣展多球冠 + 大樹有氣生根
+  function buildBanyan(h, d, level, seed) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.13);
+    const tH = h * 0.28;
+    const c  = tintHex(0x1e6b18, level);
+    g.add(mkCylM(tR*.65, tR*1.15, tH, 0x3d2008));
+    const spread = h * 0.30;
+    for (let i = 0; i < 7; i++) {
+      const ang = (i/7)*Math.PI*2 + pr(seed,i)*0.7;
+      const r   = i===0 ? 0 : spread*(0.45 + pr(seed,i+10)*0.55);
+      const y   = tH + h*(0.12 + pr(seed,i+20)*0.28);
+      const sr  = h*(0.13 + pr(seed,i+30)*0.07);
+      g.add(mkSphM(sr, c, Math.cos(ang)*r, y, Math.sin(ang)*r));
+    }
+    if (d > 35) {
+      for (let i = 0; i < 5; i++) {
+        const ang = (i/5)*Math.PI*2 + pr(seed,i+50)*0.4;
+        const rh  = h*(0.16 + pr(seed,i+55)*0.08);
+        const rm  = mkCylM(0.04, 0.07, rh, 0x2c1806);
+        rm.position.set(Math.cos(ang)*h*0.16, tH*0.55 + rh/2, Math.sin(ang)*h*0.16);
+        g.add(rm);
+      }
+    }
+    return g;
+  }
+
+  // 雨豆樹 / 鳳凰木：超廣傘形
+  function buildRainTree(h, d, level, seed) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.10);
+    const tH = h * 0.34;
+    const c  = tintHex(0x165a10, level);
+    g.add(mkCylM(tR*.8, tR, tH, 0x3d2008));
+    const spread = h * 0.40;
+    for (let i = 0; i < 9; i++) {
+      const ang = (i/9)*Math.PI*2 + pr(seed,i)*0.35;
+      const r   = spread*(0.35 + pr(seed,i+5)*0.65);
+      const y   = tH + h*(0.03 + pr(seed,i+10)*0.16);
+      const sr  = h*(0.10 + pr(seed,i+15)*0.06);
+      g.add(mkSphM(sr, c, Math.cos(ang)*r, y, Math.sin(ang)*r));
+    }
+    return g;
+  }
+
+  // 圓頂型（樟樹、茄苳、白千層等）
+  function buildRound(h, d, level, seed, baseHex) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.09);
+    const tH = h * 0.45;
+    const c  = tintHex(baseHex, level);
+    g.add(mkCylM(tR*.75, tR, tH, 0x3d2008));
+    const cR = h * 0.22;
+    g.add(mkSphM(cR, c, 0, tH + cR*.75, 0));
+    for (let i = 0; i < 4; i++) {
+      const ang = (i/4)*Math.PI*2 + pr(seed,i)*0.8;
+      const r   = h*(0.08 + pr(seed,i+5)*0.08);
+      const y   = tH + h*(0.08 + pr(seed,i+10)*0.10);
+      const sr  = h*(0.13 + pr(seed,i+15)*0.05);
+      g.add(mkSphM(sr, c, Math.cos(ang)*r, y, Math.sin(ang)*r));
+    }
+    return g;
+  }
+
+  // 錐形型（楓香、臺灣欒樹、木棉）
+  function buildCone(h, d, level, seed) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.08);
+    const tH = h * 0.48;
+    const c  = tintHex(0x4a8a15, level);
+    g.add(mkCylM(tR*.7, tR, tH, 0x3d2008));
+    for (let i = 0; i < 3; i++) {
+      const ratio = 1 - i*.28;
+      const cr = h*0.16*ratio;
+      const ch = h*0.20;
+      g.add(mkConeM(cr, ch, c, tH + h*0.10 + i*h*0.14));
+    }
+    return g;
+  }
+
+  // 窄高型（黑板樹、大葉桃花心木）
+  function buildNarrow(h, d, level, seed) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.08);
+    const tH = h * 0.55;
+    const c  = tintHex(0x0c520c, level);
+    g.add(mkCylM(tR*.75, tR, tH, 0x2c1806));
+    const wH = h - tH;
+    g.add(mkConeM(wH*.28, wH, c, tH));
+    return g;
+  }
+
+  // 棕櫚型（大王椰子、蒲葵）
+  function buildPalm(h, d, level, seed) {
+    const g = new THREE.Group();
+    const tR = Math.max(d/200, 0.12);
+    const tH = h * 0.85;
+    g.add(mkCylM(tR*.85, tR, tH, 0x5a3a18));
+    const fc = tintHex(0x2a7a12, level);
+    for (let i = 0; i < 9; i++) {
+      const ang = (i/9)*Math.PI*2;
+      const fh  = h*(0.18 + pr(seed,i)*0.06);
+      const fm  = mkCylM(0.03, 0.07, fh, fc);
+      fm.position.set(Math.cos(ang)*h*.06, tH, Math.sin(ang)*h*.06);
+      fm.rotation.set(Math.sin(ang)*.55, 0, Math.cos(ang)*.55);
+      g.add(fm);
+    }
+    return g;
+  }
+
+  const SPECIES_THREE_MAP = {
+    '榕樹'         : buildBanyan,
+    '菩提樹'       : buildBanyan,
+    '印度橡膠樹'   : buildBanyan,
+    '雨豆樹'       : buildRainTree,
+    '鳳凰木'       : buildRainTree,
+    '樟樹'         : (h,d,lv,s) => buildRound(h,d,lv,s,0x2e8a20),
+    '茄苳'         : (h,d,lv,s) => buildRound(h,d,lv,s,0x267518),
+    '烏桕'         : (h,d,lv,s) => buildRound(h,d,lv,s,0x2f8525),
+    '白千層'       : (h,d,lv,s) => buildRound(h,d,lv,s,0x388028),
+    '水黃皮'       : (h,d,lv,s) => buildRound(h,d,lv,s,0x287522),
+    '光蠟樹'       : (h,d,lv,s) => buildRound(h,d,lv,s,0x2e8a25),
+    '盾柱木'       : (h,d,lv,s) => buildRound(h,d,lv,s,0x2e7a20),
+    '阿勃勒'       : (h,d,lv,s) => buildRound(h,d,lv,s,0x4a8822),
+    '刺桐'         : (h,d,lv,s) => buildRound(h,d,lv,s,0x2e7a20),
+    '楓香'         : buildCone,
+    '臺灣欒樹'     : buildCone,
+    '木棉'         : buildCone,
+    '青楓'         : buildCone,
+    '黑板樹'       : buildNarrow,
+    '大葉桃花心木' : buildNarrow,
+    '大王椰子'     : buildPalm,
+    '蒲葵'         : buildPalm,
+  };
+
+  // ── MapLibre Custom Layer ──
+  const tree3DCustomLayer = {
+    id  : 'trees-realistic-3d',
+    type: 'custom',
+    renderingMode: '3d',
+
+    onAdd(map, gl) {
+      try {
+        this._map      = map;
+        this._scene    = new THREE.Scene();
+        this._camera   = new THREE.Camera();
+        this._treeObjs = [];
+
+        const amb = new THREE.AmbientLight(0xffffff, 1.0);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+        sun.position.set(0.8, 1.8, 0.5).normalize();
+        this._scene.add(amb, sun);
+
+        this._renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
+        this._renderer.autoClear = false;
+
+        this._originMC = maplibregl.MercatorCoordinate.fromLngLat(TREE3D_ORIGIN, 0);
+        // meterInMercatorUnits() 在 MapLibre v4 已移除，改手動計算
+        const latRad = TREE3D_ORIGIN[1] * Math.PI / 180;
+        this._scale  = 1 / (2 * Math.PI * 6371008.8 * Math.cos(latRad));
+
+        this._boundClick = (mapEvent) => this._onClick(mapEvent);
+        map.on('click', this._boundClick);
+      } catch(e) {
+        console.error('[tree3D] onAdd failed:', e);
+      }
+    },
+
+    _buildScene(trees) {
+      this._treeObjs.forEach(({ group }) => {
+        group.traverse(c => {
+          if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); }
+        });
+        this._scene.remove(group);
+      });
+      this._treeObjs = [];
+      if (!trees.length) return;
+
+      const { _originMC: oMC, _scale: sc } = this;
+      trees.forEach(row => {
+        const lat = parseFloat(row.lat), lng = parseFloat(row.lng);
+        if (!isFinite(lat) || !isFinite(lng)) return;
+        const mc  = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], 0);
+        const dx  = (mc.x - oMC.x) / sc;
+        const dz  = (mc.y - oMC.y) / sc;
+        const h   = Math.max(parseFloat(row.tree_height) || 8, 3);
+        const d   = Math.max(parseFloat(row.diameter)    || 25, 8);
+        const lv  = getRiskLevel(row);
+        const seed = (Math.abs(lng*1000) + Math.abs(lat*1000)) % 9999;
+        const build = SPECIES_THREE_MAP[row.tree_type] || ((h,d,lv,s) => buildRound(h,d,lv,s,0x267a1e));
+        const group = build(h, d, lv, seed);
+        group.position.set(dx, 0, dz);
+        this._scene.add(group);
+        this._treeObjs.push({ group, row, level: lv });
+      });
+    },
+
+    _onClick(mapEvent) {
+      if (!this._map || this._map.getZoom() < 15) return;
+      if (!this._lastMatrix || !this._treeObjs.length) return;
+      const pt = mapEvent.point;
+      const W  = this._map.getCanvas().clientWidth;
+      const H  = this._map.getCanvas().clientHeight;
+      let nearest = null, minDist2 = 50 * 50;
+      for (const obj of this._treeObjs) {
+        const wp   = obj.group.position.clone();
+        const clip = wp.applyMatrix4(this._lastMatrix.clone());
+        if (clip.z < -1 || clip.z > 1) continue;
+        const sx = (clip.x + 1) * 0.5 * W;
+        const sy = (1 - clip.y) * 0.5 * H;
+        const dx = pt.x - sx, dy = pt.y - sy;
+        const d2 = dx*dx + dy*dy;
+        if (d2 < minDist2) { minDist2 = d2; nearest = obj; }
+      }
+      if (!nearest) return;
+      const { row, level } = nearest;
+      const meta = RISK_META[level] || RISK_META.low;
+      new maplibregl.Popup({ closeButton: true, className: 'tree-popup-3d' })
+        .setLngLat({ lng: parseFloat(row.lng), lat: parseFloat(row.lat) })
+        .setHTML(`
+          <div style="font-family:'Microsoft JhengHei',sans-serif;font-size:13px;color:#c8d8f0">
+            <div style="font-weight:700;font-size:14px;color:${meta.color};margin-bottom:10px">🌳 ${row.tree_type||'未知樹種'}</div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">行政區</span><span>${row.dist||''}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">道路</span><span>${row.region||''}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">官方風險</span><span style="color:${meta.color}">${row['health_風險結果']||'未做健檢'}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">胸徑</span><span>${row.diameter ? row.diameter+' cm' : '—'}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="color:#8b949e">樹高</span><span>${row.tree_height ? row.tree_height+' m' : '—'}</span></div>
+            <div style="text-align:center;margin-top:10px;padding:4px 10px;border-radius:3px;font-size:11px;font-weight:700;border:1px solid ${meta.color};color:${meta.color};background:rgba(0,0,0,0.3)">${meta.label}</div>
+          </div>`)
+        .addTo(this._map);
+    },
+
+    render(gl, matrix) {
+      const rotX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1,0,0), Math.PI/2);
+      const m    = new THREE.Matrix4().fromArray(matrix);
+      const l    = new THREE.Matrix4()
+        .makeTranslation(this._originMC.x, this._originMC.y, this._originMC.z)
+        .scale(new THREE.Vector3(this._scale, -this._scale, this._scale))
+        .multiply(rotX);
+      this._lastMatrix = m.multiply(l);
+      this._camera.projectionMatrix = this._lastMatrix;
+      this._renderer.resetState();
+      this._renderer.render(this._scene, this._camera);
+      this._map.triggerRepaint();
+    },
+
+    onRemove() {
+      if (this._boundClick) this._map.off('click', this._boundClick);
+    },
+  };
+
+  // ── viewport query & update ──
+  function getViewportTrees() {
+    if (!map3d || !allTreeData.length) return [];
+    const b = map3d.getBounds();
+    const [S,N,W,E] = [b.getSouth(), b.getNorth(), b.getWest(), b.getEast()];
+    const showHigh = document.getElementById('chk-high').checked;
+    const showMid  = document.getElementById('chk-mid').checked;
+    const showLow  = document.getElementById('chk-low').checked;
+    const selDist  = document.getElementById('sel-dist').value;
+    return allTreeData.filter(row => {
+      const la = parseFloat(row.lat), ln = parseFloat(row.lng);
+      if (!isFinite(la) || !isFinite(ln)) return false;
+      if (la < S || la > N || ln < W || ln > E) return false;
+      const level = getRiskLevel(row);
+      if (level === 'none') return false;
+      const levelOk = (level === 'high' && showHigh) ||
+                      (level === 'mid'  && showMid)  ||
+                      (level === 'low'  && showLow);
+      const distOk  = !selDist || (row.dist || '未知') === selDist;
+      return levelOk && distOk;
+    });
+  }
+
+  let _3dTimer = null;
+  function schedule3DUpdate() {
+    clearTimeout(_3dTimer);
+    _3dTimer = setTimeout(do3DUpdate, 300);
+  }
+
+  function do3DUpdate() {
+    if (!map3d || !map3d.loaded()) return;
+    const use3D    = map3d.getZoom() >= 15;
+    const showHigh = document.getElementById('chk-high').checked;
+    const showMid  = document.getElementById('chk-mid').checked;
+    const showLow  = document.getElementById('chk-low').checked;
+    const selDist  = document.getElementById('sel-dist').value;
+
+    // Build MapLibre filter expression for circle layers
+    const levelConds = [];
+    if (showHigh) levelConds.push(['==', ['get', 'level'], 'high']);
+    if (showMid)  levelConds.push(['==', ['get', 'level'], 'mid']);
+    if (showLow)  levelConds.push(['==', ['get', 'level'], 'low']);
+    let filterExpr = null;
+    if (levelConds.length === 0) {
+      filterExpr = ['==', ['literal', 1], ['literal', 0]]; // hide all
+    } else {
+      const levelF = levelConds.length === 1 ? levelConds[0] : ['any', ...levelConds];
+      filterExpr = selDist ? ['all', levelF, ['==', ['get', 'dist'], selDist]] : levelF;
+    }
+
+    ['trees-dot','trees-glow'].forEach(id => {
+      if (map3d.getLayer(id)) {
+        map3d.setLayoutProperty(id, 'visibility', use3D ? 'none' : 'visible');
+        map3d.setFilter(id, filterExpr);
+      }
+    });
+    // custom layer 用 _scene 判斷是否已初始化（getLayer 對 custom layer 不可靠）
+    if (tree3DCustomLayer._scene) {
+      tree3DCustomLayer._buildScene(use3D ? getViewportTrees() : []);
+      if (use3D) map3d.triggerRepaint();
+    }
+  }
+
+  function toggle3D() {
+    is3DMode = !is3DMode;
+    const mapEl   = document.getElementById('map');
+    const map3dEl = document.getElementById('map-3d');
+    const btn     = document.getElementById('btn-3d');
+
+    if (is3DMode) {
+      const c = map.getCenter();
+      const z = map.getZoom();
+      mapEl.style.display   = 'none';
+      map3dEl.style.display = 'block';
+      btn.classList.add('active');
+      btn.textContent = '⬡ 2D 模式';
+
+      if (!map3d) {
+        initMap3D(c.lat, c.lng, z);
+      } else {
+        map3d.resize();
+        map3d.setCenter([c.lng, c.lat]);
+        map3d.setZoom(z);
+      }
+    } else {
+      if (map3d) {
+        const c = map3d.getCenter();
+        const z = map3d.getZoom();
+        map.setView([c.lat, c.lng], z);
+      }
+      mapEl.style.display   = 'block';
+      map3dEl.style.display = 'none';
+      btn.classList.remove('active');
+      btn.textContent = '⬡ 3D 模式';
+      map.invalidateSize();
+    }
+  }
 
   // ════════════════════════════════════════
   // 啟動

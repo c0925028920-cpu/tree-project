@@ -1,0 +1,53 @@
+{
+    "fields": [
+        {
+            "type": "String", 
+            "aliasName": "SECT_NAME", 
+            "name": "SECT_NAME", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "SECT_CODE", 
+            "name": "SECT_CODE", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "LIE_NAME", 
+            "name": "LIE_NAME", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "LIE_CODE", 
+            "name": "LIE_CODE", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "LI_NO", 
+            "name": "LI_NO", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "SDFKEY", 
+            "name": "SDFKEY", 
+            "precision": 0, 
+            "width": 0
+        }, 
+        {
+            "type": "String", 
+            "aliasName": "SDFNAME", 
+            "name": "SDFNAME", 
+            "precision": 0, 
+            "width": 0
+        }
+    ]
+}
