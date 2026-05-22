@@ -857,6 +857,59 @@
     const diameter   = parseFloat(row['diameter']);
     const height     = parseFloat(row['tree_height']);
     const isProt     = String(row['is_protected']).toUpperCase() === 'TRUE';
+    const isBrownrot = row['tree_type'] === '褐根病通報點';
+
+    if (isBrownrot) {
+      return `
+        <div class="pop-head" style="color:#ef4444">⚠️ 褐根病通報點</div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:8px">此點位無清查樹木資料，僅有病害通報紀錄</div>
+        <div class="pop-row">
+          <span class="pop-lbl">通報編號</span>
+          <span class="pop-val" style="font-size:11px;color:#8b949e">${row['tree_id'] || '—'}</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">行政區</span>
+          <span class="pop-val">無</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">道路</span>
+          <span class="pop-val">無</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">胸徑</span>
+          <span class="pop-val">無</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">樹高</span>
+          <span class="pop-val">無</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">樹木狀況</span>
+          <span class="pop-val">無</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">官方風險等級</span>
+          <span class="pop-val">無</span>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(220,38,38,0.3);margin:8px 0">
+        <div style="font-size:11px;color:#ef4444;font-weight:700;margin-bottom:4px">⚠️ 褐根病通報紀錄</div>
+        <div class="pop-row">
+          <span class="pop-lbl">通報次數</span>
+          <span class="pop-val" style="color:#ef4444;font-weight:700">${row['brownrot_count']} 次</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">最近通報</span>
+          <span class="pop-val" style="font-size:11px;color:#8b949e">${row['brownrot_latest_date'] || '—'}</span>
+        </div>
+        <div class="pop-row">
+          <span class="pop-lbl">病害類型</span>
+          <span class="pop-val" style="font-size:11px;color:#8b949e">${row['brownrot_damage_types'] || '—'}</span>
+        </div>
+        <div style="text-align:center;margin-top:8px">
+          <span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444">褐根病通報</span>
+        </div>
+      `;
+    }
 
     return `
       <div class="pop-head">🌳 ${row['tree_type'] || '未知樹種'}${isProt ? ' <span style="color:#f0a500;font-size:12px">⭐ 列管保護</span>' : ''}</div>
@@ -918,9 +971,25 @@
         <span class="pop-lbl">管理單位</span>
         <span class="pop-val" style="font-size:11px;color:#8b949e">${(row['prot_mgr'] || '—').substring(0,20)}</span>
       </div>` : ''}
+      ${parseInt(row['brownrot_count']) > 0 ? `
+      <hr style="border:none;border-top:1px solid rgba(220,38,38,0.3);margin:8px 0">
+      <div style="font-size:11px;color:#ef4444;font-weight:700;margin-bottom:4px">⚠️ 褐根病通報紀錄</div>
+      <div class="pop-row">
+        <span class="pop-lbl">通報次數</span>
+        <span class="pop-val" style="color:#ef4444;font-weight:700">${row['brownrot_count']} 次</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">最近通報</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${row['brownrot_latest_date'] || '—'}</span>
+      </div>
+      <div class="pop-row">
+        <span class="pop-lbl">病害類型</span>
+        <span class="pop-val" style="font-size:11px;color:#8b949e">${row['brownrot_damage_types'] || '—'}</span>
+      </div>` : ''}
       <div style="text-align:center;margin-top:8px">
         <span class="risk-badge ${meta.badgeClass}">${meta.label}</span>
         ${isProt ? '<span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500;margin-left:4px">列管老樹</span>' : ''}
+        ${parseInt(row['brownrot_count']) > 0 ? '<span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444;margin-left:4px">褐根病通報</span>' : ''}
       </div>
     `;
   }

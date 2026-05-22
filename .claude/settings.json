@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/yaoming1023/tree-project && git fetch origin main 2>&1 && UPSTREAM=$(git rev-parse origin/main) && LOCAL=$(git rev-parse HEAD) && if [ \"$UPSTREAM\" != \"$LOCAL\" ]; then git pull origin main 2>&1 && echo '{\"systemMessage\": \"✅ 偵測到新版本，已自動 pull 最新版本！\"}'; else echo '{\"systemMessage\": \"✅ 已是最新版本，無需更新。\"}'; fi",
+            "statusMessage": "檢查 GitHub 是否有最新版本...",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
