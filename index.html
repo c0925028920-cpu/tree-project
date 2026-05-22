@@ -810,10 +810,10 @@
   }
 
   const RISK_META = {
-    high : { label: '高/重風險', color: '#f85149', radius: 8,  badgeClass: 'badge-high' },
-    mid  : { label: '中風險',   color: '#e3b341', radius: 6,  badgeClass: 'badge-mid'  },
-    low  : { label: '低/D級',   color: '#3fb950', radius: 4,  badgeClass: 'badge-low'  },
-    none : { label: '無健檢資料', color: '#6e7681', radius: 3,  badgeClass: 'badge-none' },
+    high : { label: '高/重風險', color: '#f85149', radius: 5,  badgeClass: 'badge-high' },
+    mid  : { label: '中風險',   color: '#e3b341', radius: 4,  badgeClass: 'badge-mid'  },
+    low  : { label: '低/D級',   color: '#3fb950', radius: 3,  badgeClass: 'badge-low'  },
+    none : { label: '無健檢資料', color: '#6e7681', radius: 2,  badgeClass: 'badge-none' },
   };
 
   // ════════════════════════════════════════
@@ -846,6 +846,60 @@
     if (code === 'P') return '正常';
     if (code === 'I') return '異常';
     return '—';
+  }
+
+  function buildRiskReasoning(row, level) {
+    const meta      = RISK_META[level];
+    const deduction = parseFloat(row['health_健檢扣分']);
+    const factor    = (row['health_健檢關鍵因子'] || '').trim();
+    const tipDead   = parseFloat(row['health_樹冠頂梢枯死率']);
+    const crownLoss = parseFloat(row['health_樹冠缺失率']);
+    const isBR      = row['tree_id']?.startsWith('BR');
+    const hasBr     = parseInt(row['brownrot_count']) > 0;
+
+    const points = [];
+
+    if (isBR) {
+      // 褐根病通報點：無實體健檢，依病害類型推估
+      const dmg = row['brownrot_damage_types'] || '病害通報';
+      points.push(`依據 <b>${dmg}</b> 通報紀錄推估`);
+      points.push('此點位尚無樹木清查資料，風險為<b>保守估計</b>');
+      if (row['brownrot_latest_date']) points.push(`最近通報日期：${row['brownrot_latest_date']}`);
+    } else if (level === 'none') {
+      points.push('此樹木<b>尚未進行官方健康檢查</b>');
+      points.push('無法計算風險分數，列為未評估');
+      if (hasBr) points.push(`附近有 <b style="color:#ef4444">${row['brownrot_count']} 筆</b>褐根病通報紀錄，建議優先檢查`);
+    } else {
+      // 有健檢資料：說明扣分與關鍵因子
+      if (isFinite(deduction)) {
+        const abs = Math.abs(deduction);
+        const desc = abs >= 30 ? '嚴重扣分（高危險）' : abs >= 15 ? '中度扣分' : '輕微扣分';
+        points.push(`健檢扣分 <b style="color:${meta.color}">${deduction} 分</b>（${desc}）`);
+      }
+      if (factor && factor !== 'NA') {
+        points.push(`關鍵因子：<b>${factor}</b>`);
+      }
+      if (isFinite(tipDead) && tipDead > 0) {
+        const tipColor = tipDead >= 30 ? '#f85149' : tipDead >= 10 ? '#e3b341' : '#8b949e';
+        points.push(`樹冠頂梢枯死率 <b style="color:${tipColor}">${tipDead}%</b>`);
+      }
+      if (isFinite(crownLoss) && crownLoss > 0) {
+        const clColor = crownLoss >= 30 ? '#f85149' : crownLoss >= 10 ? '#e3b341' : '#8b949e';
+        points.push(`樹冠缺失率 <b style="color:${clColor}">${crownLoss}%</b>`);
+      }
+      if (hasBr) {
+        points.push(`另有 <b style="color:#ef4444">${row['brownrot_count']} 筆</b>褐根病通報紀錄`);
+      }
+    }
+
+    if (!points.length) return '';
+
+    return `
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:10px 0 6px">
+      <div style="font-size:11px;color:#8b949e;font-weight:700;margin-bottom:5px">📊 風險判定依據</div>
+      <ul style="margin:0;padding-left:14px;list-style:disc">
+        ${points.map(p => `<li style="font-size:11px;color:#8b949e;line-height:1.6">${p}</li>`).join('')}
+      </ul>`;
   }
 
   function buildPopupHtml(row, level) {
@@ -908,6 +962,7 @@
         <div style="text-align:center;margin-top:8px">
           <span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444">褐根病通報</span>
         </div>
+        ${buildRiskReasoning(row, level)}
       `;
     }
 
@@ -991,6 +1046,7 @@
         ${isProt ? '<span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500;margin-left:4px">列管老樹</span>' : ''}
         ${parseInt(row['brownrot_count']) > 0 ? '<span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444;margin-left:4px">褐根病通報</span>' : ''}
       </div>
+      ${buildRiskReasoning(row, level)}
     `;
   }
 
@@ -1053,7 +1109,7 @@
           // 無健檢資料：載入 allMarkers 供未來功能使用，但預設不加入地圖
           if (level !== 'none') marker.addTo(map);
 
-          allMarkers.push({ marker, level, dist, latlng: [lat, lng], treeData: row });
+          allMarkers.push({ marker, level, dist, latlng: [lat, lng], treeData: row, hasBrownrot: parseInt(row['brownrot_count']) > 0, isProtected: String(row['is_protected']).toUpperCase() === 'TRUE' });
         });
 
         // 更新統計
@@ -1089,16 +1145,20 @@
     const showHigh = document.getElementById('chk-high').checked;
     const showMid  = document.getElementById('chk-mid').checked;
     const showLow  = document.getElementById('chk-low').checked;
+    const showBr   = document.getElementById('chk-brownrot').checked;
+    const showProt = document.getElementById('chk-protected').checked;
     const selDist  = document.getElementById('sel-dist').value;
 
-    allMarkers.forEach(({ marker, level, dist }) => {
+    allMarkers.forEach(({ marker, level, dist, hasBrownrot, isProtected }) => {
       const levelOk = (level === 'high' && showHigh) ||
                       (level === 'mid'  && showMid)  ||
                       (level === 'low'  && showLow);
+      const brOk    = showBr   && hasBrownrot;
+      const protOk  = showProt && isProtected;
       const distOk  = !selDist || dist === selDist;
 
-      if (levelOk && distOk) marker.addTo(map);
-      else                   marker.remove();
+      if ((levelOk || brOk || protOk) && distOk) marker.addTo(map);
+      else                                        marker.remove();
     });
 
     // 3D 模式同步篩選（直接呼叫，不走 debounce 以即時反映）
@@ -1857,7 +1917,7 @@ function zoomToTree(lat, lng) {
           const color      = isBrownrot ? '#a371f7' : '#6e7681';
 
           const marker = L.circleMarker([lat, lng], {
-            radius      : 5,
+            radius      : 3,
             fillColor   : color,
             color       : 'rgba(255,255,255,0.5)',
             weight      : 1,
@@ -1884,6 +1944,8 @@ function zoomToTree(lat, lng) {
       if ((isBrownrot && showBr) || (!isBrownrot && showOth)) marker.addTo(map);
       else marker.remove();
     });
+    // 同步更新主表中有褐根病紀錄的樹木顯示狀態
+    applyFilter();
   }
 
   document.getElementById('chk-brownrot').addEventListener('change', applyBrownrotFilter);
@@ -1938,7 +2000,7 @@ function zoomToTree(lat, lng) {
           if (!isFinite(lat) || !isFinite(lng)) return;
 
           const marker = L.circleMarker([lat, lng], {
-            radius      : 6,
+            radius      : 4,
             fillColor   : '#f0a500',
             color       : 'rgba(255,255,255,0.6)',
             weight      : 1.5,
@@ -1954,8 +2016,8 @@ function zoomToTree(lat, lng) {
   }
 
   function applyProtectedFilter() {
-    const show = document.getElementById('chk-protected').checked;
-    protectedMarkers.forEach(m => show ? m.addTo(map) : m.remove());
+    // 列管老樹已整合進主表，由 applyFilter 統一控制
+    applyFilter();
   }
   document.getElementById('chk-protected').addEventListener('change', applyProtectedFilter);
 
@@ -1996,7 +2058,7 @@ function zoomToTree(lat, lng) {
           if (!isFinite(lat) || !isFinite(lng)) return;
 
           const marker = L.circleMarker([lat, lng], {
-            radius      : 4,
+            radius      : 2,
             fillColor   : '#4a9eff',
             color       : 'rgba(255,255,255,0.4)',
             weight      : 1,
@@ -2557,8 +2619,8 @@ function zoomToTree(lat, lng) {
   // 啟動
   // ════════════════════════════════════════
   loadTrees();
-  loadBrownrot();
-  loadProtectedTrees();
+  // loadBrownrot() 已停用：褐根病資料整合進主表
+  // loadProtectedTrees() 已停用：列管老樹整合進主表（PT 前綴）
   loadTreePits();
   loadWeather();
   initRoutePanel();
