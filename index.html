@@ -686,6 +686,10 @@
         <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
         <span class="cnt c-low" id="cnt-low">—</span>
       </div>
+      <div class="stat-row" style="opacity:0.6">
+        <span><span class="dot" style="background:#6e7681"></span><span style="color:#6e7681">未健檢</span></span>
+        <span class="cnt" style="color:#6e7681" id="cnt-none">—</span>
+      </div>
       <hr class="divider">
       <div class="stat-row">
         <span class="c-total">總計</span>
@@ -699,6 +703,7 @@
       <label><input type="checkbox" id="chk-high" checked> <span class="c-high">高/重風險</span></label>
       <label><input type="checkbox" id="chk-mid"  checked> <span class="c-mid">中風險</span></label>
       <label><input type="checkbox" id="chk-low"  checked> <span class="c-low">低/D級</span></label>
+      <label><input type="checkbox" id="chk-none"> <span style="color:#6e7681">未健檢樹木</span></label>
       <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:6px 0">
       <label><input type="checkbox" id="chk-brownrot" checked> <span style="color:#a371f7">褐根病通報</span></label>
       <label><input type="checkbox" id="chk-otherdmg"> <span style="color:#6e7681">其他病害通報</span></label>
@@ -816,6 +821,11 @@
     none : { label: '無健檢資料', color: '#6e7681', radius: 2,  badgeClass: 'badge-none' },
   };
 
+  // 高倒塌風險樹種（根系淺廣或結構脆弱，不適合狹窄行道）
+  const HIGH_RISK_SPECIES = new Set(['榕樹', '菩提樹', '黑板樹', '盾柱木', '雀榕']);
+  // 截頂修剪傷害關鍵字（3-5 年後易導致枝幹斷裂）
+  const TOPPING_KEYWORDS  = ['修枝', '截', '創傷', '腐朽', '腐爛', '無法癒合', '不定芽'];
+
   // ════════════════════════════════════════
   // 地圖初始化
   // ════════════════════════════════════════
@@ -912,6 +922,9 @@
     const height     = parseFloat(row['tree_height']);
     const isProt     = String(row['is_protected']).toUpperCase() === 'TRUE';
     const isBrownrot = row['tree_type'] === '褐根病通報點';
+    const isHighRiskSpecies = HIGH_RISK_SPECIES.has((row['tree_type'] || '').trim());
+    const factorStr         = (row['health_健檢關鍵因子'] || '').trim();
+    const hasTopping        = level !== 'none' && TOPPING_KEYWORDS.some(k => factorStr.includes(k));
 
     if (isBrownrot) {
       return `
@@ -967,7 +980,7 @@
     }
 
     return `
-      <div class="pop-head">🌳 ${row['tree_type'] || '未知樹種'}${isProt ? ' <span style="color:#f0a500;font-size:12px">⭐ 列管保護</span>' : ''}</div>
+      <div class="pop-head">🌳 ${row['tree_type'] || '未知樹種'}${isProt ? ' <span style="color:#f0a500;font-size:12px">⭐ 列管保護</span>' : ''}${isHighRiskSpecies ? ' <span style="color:#ffa502;font-size:11px">⚠ 高風險樹種</span>' : ''}</div>
       <div class="pop-row">
         <span class="pop-lbl">樹木編號</span>
         <span class="pop-val" style="font-size:11px;color:#8b949e">${row['tree_id'] || '—'}</span>
@@ -1009,8 +1022,9 @@
       ${factor && factor !== 'NA' ? `
       <div class="pop-row" style="margin-top:8px;align-items:flex-start">
         <span class="pop-lbl">關鍵因子</span>
-        <span class="pop-val" style="font-size:11px;color:#8b949e;text-align:right">${factor}</span>
-      </div>` : ''}
+        <span class="pop-val" style="font-size:11px;color:${hasTopping ? '#ffa502' : '#8b949e'};text-align:right">${factor}</span>
+      </div>
+      ${hasTopping ? `<div style="font-size:10px;color:#ffa502;margin-top:4px;padding:4px 6px;background:rgba(255,165,2,0.07);border-left:2px solid #ffa502;line-height:1.5">⚠️ 疑似修剪傷害：截頂式修剪產生的傷口易在 3–5 年後導致枝幹斷裂</div>` : ''}` : ''}
       ${isProt ? `
       <hr style="border:none;border-top:1px solid rgba(240,165,0,0.2);margin:8px 0">
       <div style="font-size:11px;color:#f0a500;font-weight:700;margin-bottom:4px">⭐ 列管保護樹木資訊</div>
@@ -1041,10 +1055,12 @@
         <span class="pop-lbl">病害類型</span>
         <span class="pop-val" style="font-size:11px;color:#8b949e">${row['brownrot_damage_types'] || '—'}</span>
       </div>` : ''}
-      <div style="text-align:center;margin-top:8px">
+      <div style="text-align:center;margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
         <span class="risk-badge ${meta.badgeClass}">${meta.label}</span>
-        ${isProt ? '<span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500;margin-left:4px">列管老樹</span>' : ''}
-        ${parseInt(row['brownrot_count']) > 0 ? '<span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444;margin-left:4px">褐根病通報</span>' : ''}
+        ${isProt ? '<span class="risk-badge" style="background:rgba(240,165,0,0.12);color:#f0a500;border:1px solid #f0a500">列管老樹</span>' : ''}
+        ${parseInt(row['brownrot_count']) > 0 ? '<span class="risk-badge" style="background:rgba(220,38,38,0.12);color:#ef4444;border:1px solid #ef4444">褐根病通報</span>' : ''}
+        ${isHighRiskSpecies ? '<span class="risk-badge" style="background:rgba(255,165,2,0.12);color:#ffa502;border:1px solid #ffa502">高風險樹種</span>' : ''}
+        ${hasTopping ? '<span class="risk-badge" style="background:rgba(255,165,2,0.07);color:#ffa502;border:1px solid rgba(255,165,2,0.5)">疑似修剪傷害</span>' : ''}
       </div>
       ${buildRiskReasoning(row, level)}
     `;
@@ -1063,7 +1079,7 @@
       encoding       : 'UTF-8',
 
       complete(results) {
-        const counts = { high: 0, mid: 0, low: 0 };
+        const counts = { high: 0, mid: 0, low: 0, none: 0 };
 
         results.data.forEach(row => {
           const lat = parseFloat(row['lat']);
@@ -1079,6 +1095,8 @@
           if (level !== 'none') {
             counts[level]++;
             distSet.add(dist);
+          } else {
+            counts.none++;
           }
 
           let marker;
@@ -1117,6 +1135,7 @@
         document.getElementById('cnt-high').textContent  = counts.high.toLocaleString();
         document.getElementById('cnt-mid').textContent   = counts.mid.toLocaleString();
         document.getElementById('cnt-low').textContent   = counts.low.toLocaleString();
+        document.getElementById('cnt-none').textContent  = counts.none.toLocaleString();
         document.getElementById('cnt-total').textContent = total.toLocaleString();
 
         // 行政區下拉
@@ -1145,6 +1164,7 @@
     const showHigh = document.getElementById('chk-high').checked;
     const showMid  = document.getElementById('chk-mid').checked;
     const showLow  = document.getElementById('chk-low').checked;
+    const showNone = document.getElementById('chk-none').checked;
     const showBr   = document.getElementById('chk-brownrot').checked;
     const showProt = document.getElementById('chk-protected').checked;
     const selDist  = document.getElementById('sel-dist').value;
@@ -1152,7 +1172,8 @@
     allMarkers.forEach(({ marker, level, dist, hasBrownrot, isProtected }) => {
       const levelOk = (level === 'high' && showHigh) ||
                       (level === 'mid'  && showMid)  ||
-                      (level === 'low'  && showLow);
+                      (level === 'low'  && showLow)  ||
+                      (level === 'none' && showNone);
       const brOk    = showBr   && hasBrownrot;
       const protOk  = showProt && isProtected;
       const distOk  = !selDist || dist === selDist;
@@ -1165,7 +1186,7 @@
     if (is3DMode) do3DUpdate();
   }
 
-  ['chk-high','chk-mid','chk-low'].forEach(id => {
+  ['chk-high','chk-mid','chk-low','chk-none'].forEach(id => {
     document.getElementById(id).addEventListener('change', applyFilter);
   });
 
@@ -1231,8 +1252,8 @@
         const names = activeHazardsCache.map(h => h.info?.phenomena).filter(Boolean).join('、');
         msgs.push(names || '天氣警報');
       }
-      if (isWind)  msgs.push(`強風（${gust ?? wind} m/s）`);
-      if (isHeavy) msgs.push(weather);
+      if (isWind)  msgs.push(`強風 ${(+(gust ?? wind)).toFixed(1)} m/s，榕樹等淺根路樹倒塌風險升高`);
+      if (isHeavy) msgs.push(`${weather}，豪雨易使根部土層鬆動，請勿在大型路樹下方停留`);
       document.getElementById('alert-msg').textContent = msgs.join('、');
       banner.classList.add('active');
     } else {
