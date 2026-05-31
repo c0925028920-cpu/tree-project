@@ -2934,9 +2934,9 @@ function zoomToTree(lat, lng) {
   initRoutePanel();
 
   // ════════════════════════════════════════
-  // 手機版底部抽屜
+  // 手機版底部抽屜（defer：HTML 在 script 結束標籤後面）
   // ════════════════════════════════════════
-  (function initMobileSheet() {
+  window.addEventListener('DOMContentLoaded', function initMobileSheet() {
     const sheet      = document.getElementById('mobile-sheet');
     const handleArea = document.getElementById('sheet-handle-area');
     const miniStats  = document.getElementById('sheet-mini-stats');
@@ -3017,7 +3017,7 @@ function zoomToTree(lat, lng) {
     if (fab && window.innerWidth <= 768) fab.style.display = 'flex';
 
     snapToState('collapsed');
-  })();
+  });
   </script>
 
   <!-- ══ 手機版底部抽屜 ══ -->
