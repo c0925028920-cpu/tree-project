@@ -1357,6 +1357,7 @@
         const distArr = [...distSet].sort();
         ['sel-dist', 'mob-sel-dist'].forEach(selId => {
           const sel = document.getElementById(selId);
+          if (!sel) return;
           distArr.forEach(d => {
             const opt = document.createElement('option');
             opt.value = d; opt.textContent = d;
@@ -1415,14 +1416,18 @@
     updateWeatherForDistrict(this.value);
   });
 
-  // 手機版篩選器 listeners
-  ['mob-chk-high','mob-chk-mid','mob-chk-low','mob-chk-none',
-   'mob-chk-brownrot','mob-chk-protected'].forEach(id => {
-    document.getElementById(id).addEventListener('change', applyFilter);
-  });
-  document.getElementById('mob-sel-dist').addEventListener('change', function () {
-    applyFilter();
-    updateWeatherForDistrict(this.value);
+  // 手機版篩選器 listeners（defer 到 DOMContentLoaded 後，因 mobile-sheet HTML 在 </script> 之後）
+  window.addEventListener('DOMContentLoaded', () => {
+    ['mob-chk-high','mob-chk-mid','mob-chk-low','mob-chk-none',
+     'mob-chk-brownrot','mob-chk-protected'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', applyFilter);
+    });
+    const mobDist = document.getElementById('mob-sel-dist');
+    if (mobDist) mobDist.addEventListener('change', function () {
+      applyFilter();
+      updateWeatherForDistrict(this.value);
+    });
   });
 
   // ════════════════════════════════════════
