@@ -3096,15 +3096,24 @@ function zoomToTree(lat, lng) {
     handleArea.addEventListener('touchend', e => {
       if (!dragging) return;
       dragging = false;
-      const dy = startY - e.changedTouches[0].clientY;
+      const dy = startY - e.changedTouches[0].clientY; // 正 = 往上滑, 負 = 往下滑
       if (Math.abs(dy) < 10) {
         snapToState(currentState === 'collapsed' ? 'half' : 'collapsed');
         return;
       }
-      const h = sheet.offsetHeight;
-      if      (h > halfH() + 80) snapToState('full');
-      else if (h > COLL_H  + 60) snapToState('half');
-      else                        snapToState('collapsed');
+      if (dy < -30) {
+        // 往下滑：逐段收合
+        snapToState(currentState === 'full' ? 'half' : 'collapsed');
+      } else if (dy > 30) {
+        // 往上滑：逐段展開
+        snapToState(currentState === 'collapsed' ? 'half' : 'full');
+      } else {
+        // 小幅移動：依高度 snap
+        const h = sheet.offsetHeight;
+        if      (h > halfH() + 80) snapToState('full');
+        else if (h > COLL_H  + 60) snapToState('half');
+        else                        snapToState('collapsed');
+      }
     }, { passive: true });
 
     document.querySelectorAll('.sheet-tab').forEach(tab => {
