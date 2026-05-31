@@ -994,6 +994,112 @@
     </div>
   </div>
 
+  <!-- ══ 手機版底部抽屜 ══ -->
+  <div id="mobile-sheet">
+    <div class="sheet-handle-area" id="sheet-handle-area">
+      <div class="sheet-handle"></div>
+      <div class="sheet-mini-stats" id="sheet-mini-stats">
+        <span><span class="dot dot-high"></span><span class="mob-cnt c-high" id="mob-cnt-high">—</span></span>
+        <span><span class="dot dot-mid"></span><span class="mob-cnt c-mid" id="mob-cnt-mid">—</span></span>
+        <span><span class="dot dot-low"></span><span class="mob-cnt c-low" id="mob-cnt-low">—</span></span>
+        <span><span class="dot" style="background:#6e7681"></span><span class="mob-cnt" style="color:#6e7681" id="mob-cnt-none">—</span></span>
+      </div>
+    </div>
+
+    <div class="sheet-tabs" id="sheet-tabs">
+      <button class="sheet-tab active" data-tab="stats">📊 統計</button>
+      <button class="sheet-tab" data-tab="filter">🔍 篩選</button>
+      <button class="sheet-tab" data-tab="legend">🗺 圖例</button>
+      <button class="sheet-tab" data-tab="route">🧭 路線</button>
+    </div>
+
+    <div class="sheet-content" id="sheet-content">
+
+      <!-- 統計 tab -->
+      <div class="sheet-panel active" id="mob-tab-stats">
+        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">風險統計</div>
+        <div class="stat-row">
+          <span><span class="dot dot-high"></span><span class="c-high">高/重風險</span></span>
+          <span class="cnt c-high" id="mob-stat-high">—</span>
+        </div>
+        <div class="stat-row">
+          <span><span class="dot dot-mid"></span><span class="c-mid">中風險</span></span>
+          <span class="cnt c-mid" id="mob-stat-mid">—</span>
+        </div>
+        <div class="stat-row">
+          <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
+          <span class="cnt c-low" id="mob-stat-low">—</span>
+        </div>
+        <div class="stat-row" style="opacity:0.6">
+          <span><span class="dot" style="background:#6e7681"></span><span style="color:#6e7681">未健檢</span></span>
+          <span class="cnt" style="color:#6e7681" id="mob-stat-none">—</span>
+        </div>
+        <hr class="divider">
+        <div class="stat-row">
+          <span class="c-total">總計</span>
+          <span class="cnt c-total" id="mob-stat-total">—</span>
+        </div>
+      </div>
+
+      <!-- 篩選 tab -->
+      <div class="sheet-panel" id="mob-tab-filter">
+        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">顯示篩選</div>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-high" checked> <span class="c-high">高/重風險</span></label>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-mid"  checked> <span class="c-mid">中風險</span></label>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-low"  checked> <span class="c-low">低/D級</span></label>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-none"> <span style="color:#6e7681">未健檢樹木</span></label>
+        <hr class="mob-divider">
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-brownrot" checked> <span style="color:#a371f7">褐根病通報</span></label>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-otherdmg"> <span style="color:#6e7681">其他病害通報</span></label>
+        <hr class="mob-divider">
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-protected" checked> <span style="color:#f0a500">列管保護老樹</span></label>
+        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-pit"> <span style="color:#4a9eff">樹穴位置</span></label>
+        <select id="mob-sel-dist" class="mob-filter-select">
+          <option value="">所有行政區</option>
+        </select>
+      </div>
+
+      <!-- 圖例 tab -->
+      <div class="sheet-panel" id="mob-tab-legend">
+        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">風險等級（官方健檢）</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>高/重風險</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>中風險</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>低/D級風險</div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:8px 0">
+        <div class="legend-item"><div class="legend-dot" style="background:#a371f7;border-radius:3px"></div>褐根病通報</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#6e7681;border-radius:3px"></div>其他病害通報</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f0a500;border-radius:2px"></div>列管保護老樹</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4a9eff;border-radius:2px"></div>樹穴位置</div>
+        <div style="margin-top:10px;font-size:11px;color:#8b949e;line-height:1.6">
+          資料來源：台北市政府工務局<br>公園路燈工程管理處<br>林業試驗所林木疫情監測系統
+        </div>
+      </div>
+
+      <!-- 路線 tab -->
+      <div class="sheet-panel" id="mob-tab-route">
+        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">◈ ROUTE PLANNER</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);opacity:0.7;margin-bottom:5px">出發地</div>
+        <input class="mob-rs-input" id="mob-inp-start" type="text" placeholder="輸入地址或地名" autocomplete="off">
+        <div class="mob-rs-status" id="mob-start-status"></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);opacity:0.7;margin-bottom:5px">目的地</div>
+        <input class="mob-rs-input" id="mob-inp-end" type="text" placeholder="輸入地址或地名" autocomplete="off">
+        <div class="mob-rs-status" id="mob-end-status"></div>
+        <div class="mob-rs-mode">
+          <label><input type="radio" name="mob-tmode" value="foot" checked>🚶 步行</label>
+          <label><input type="radio" name="mob-tmode" value="driving">🚗 開車</label>
+          <label><input type="radio" name="mob-tmode" value="bike">🚲 騎車</label>
+        </div>
+        <button class="mob-rs-btn mob-rs-btn-primary" onclick="handleMobRouteSearch()">查詢路線</button>
+        <button class="mob-rs-btn mob-rs-btn-secondary" id="mob-btn-clear-route" onclick="clearMobRoute()" style="display:none">清除路線</button>
+        <div id="mob-route-result"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 3D 模式 FAB（手機版） -->
+  <button id="fab-3d" onclick="toggle3D()">3D</button>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
@@ -1432,18 +1538,15 @@
     updateWeatherForDistrict(this.value);
   });
 
-  // 手機版篩選器 listeners（defer 到 DOMContentLoaded 後，因 mobile-sheet HTML 在 script 結束標籤之後）
-  window.addEventListener('DOMContentLoaded', () => {
-    ['mob-chk-high','mob-chk-mid','mob-chk-low','mob-chk-none',
-     'mob-chk-brownrot','mob-chk-protected'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', applyFilter);
-    });
-    const mobDist = document.getElementById('mob-sel-dist');
-    if (mobDist) mobDist.addEventListener('change', function () {
-      applyFilter();
-      updateWeatherForDistrict(this.value);
-    });
+  ['mob-chk-high','mob-chk-mid','mob-chk-low','mob-chk-none',
+   'mob-chk-brownrot','mob-chk-protected'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', applyFilter);
+  });
+  const mobDist = document.getElementById('mob-sel-dist');
+  if (mobDist) mobDist.addEventListener('change', function () {
+    applyFilter();
+    updateWeatherForDistrict(this.value);
   });
 
   // ════════════════════════════════════════
@@ -2382,10 +2485,13 @@ function zoomToTree(lat, lng) {
   }
 
   function applyPitFilter() {
-    const show = document.getElementById('chk-pit').checked;
+    const mob  = window.innerWidth <= 768;
+    const show = document.getElementById((mob ? 'mob-' : '') + 'chk-pit').checked;
     pitMarkers.forEach(m => show ? m.addTo(map) : m.remove());
   }
   document.getElementById('chk-pit').addEventListener('change', applyPitFilter);
+  const mobPit = document.getElementById('mob-chk-pit');
+  if (mobPit) mobPit.addEventListener('change', applyPitFilter);
 
   // ════════════════════════════════════════
   // 3D 地圖（MapLibre GL JS）
@@ -2934,9 +3040,9 @@ function zoomToTree(lat, lng) {
   initRoutePanel();
 
   // ════════════════════════════════════════
-  // 手機版底部抽屜（defer：HTML 在 script 結束標籤後面）
+  // 手機版底部抽屜
   // ════════════════════════════════════════
-  window.addEventListener('DOMContentLoaded', function initMobileSheet() {
+  (function initMobileSheet() {
     const sheet      = document.getElementById('mobile-sheet');
     const handleArea = document.getElementById('sheet-handle-area');
     const miniStats  = document.getElementById('sheet-mini-stats');
@@ -2944,7 +3050,7 @@ function zoomToTree(lat, lng) {
     const content    = document.getElementById('sheet-content');
     if (!sheet) return;
 
-    const COLL_H = 56;
+    const COLL_H = 96;
     let currentState = 'collapsed';
     let startY = 0, startH = 0, dragging = false;
 
@@ -2960,8 +3066,8 @@ function zoomToTree(lat, lng) {
       currentState = state;
       const isColl = state === 'collapsed';
       setSheetHeight(isColl ? COLL_H : (state === 'full' ? fullH() : halfH()), true);
-      miniStats.style.display = isColl ? 'flex' : 'none';
-      tabBar.style.display    = isColl ? 'none' : 'flex';
+      miniStats.style.display = 'flex';
+      tabBar.style.display    = 'flex';
       content.style.display   = isColl ? 'none' : 'block';
       sheet.dataset.state     = state;
     }
@@ -3017,114 +3123,9 @@ function zoomToTree(lat, lng) {
     if (fab && window.innerWidth <= 768) fab.style.display = 'flex';
 
     snapToState('collapsed');
-  });
+  })();
   </script>
 
-  <!-- ══ 手機版底部抽屜 ══ -->
-  <div id="mobile-sheet">
-    <div class="sheet-handle-area" id="sheet-handle-area">
-      <div class="sheet-handle"></div>
-      <div class="sheet-mini-stats" id="sheet-mini-stats">
-        <span><span class="dot dot-high"></span><span class="mob-cnt c-high" id="mob-cnt-high">—</span></span>
-        <span><span class="dot dot-mid"></span><span class="mob-cnt c-mid" id="mob-cnt-mid">—</span></span>
-        <span><span class="dot dot-low"></span><span class="mob-cnt c-low" id="mob-cnt-low">—</span></span>
-        <span><span class="dot" style="background:#6e7681"></span><span class="mob-cnt" style="color:#6e7681" id="mob-cnt-none">—</span></span>
-      </div>
-    </div>
-
-    <div class="sheet-tabs" id="sheet-tabs">
-      <button class="sheet-tab active" data-tab="stats">📊 統計</button>
-      <button class="sheet-tab" data-tab="filter">🔍 篩選</button>
-      <button class="sheet-tab" data-tab="legend">🗺 圖例</button>
-      <button class="sheet-tab" data-tab="route">🧭 路線</button>
-    </div>
-
-    <div class="sheet-content" id="sheet-content">
-
-      <!-- 統計 tab -->
-      <div class="sheet-panel active" id="mob-tab-stats">
-        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">風險統計</div>
-        <div class="stat-row">
-          <span><span class="dot dot-high"></span><span class="c-high">高/重風險</span></span>
-          <span class="cnt c-high" id="mob-stat-high">—</span>
-        </div>
-        <div class="stat-row">
-          <span><span class="dot dot-mid"></span><span class="c-mid">中風險</span></span>
-          <span class="cnt c-mid" id="mob-stat-mid">—</span>
-        </div>
-        <div class="stat-row">
-          <span><span class="dot dot-low"></span><span class="c-low">低/D級</span></span>
-          <span class="cnt c-low" id="mob-stat-low">—</span>
-        </div>
-        <div class="stat-row" style="opacity:0.6">
-          <span><span class="dot" style="background:#6e7681"></span><span style="color:#6e7681">未健檢</span></span>
-          <span class="cnt" style="color:#6e7681" id="mob-stat-none">—</span>
-        </div>
-        <hr class="divider">
-        <div class="stat-row">
-          <span class="c-total">總計</span>
-          <span class="cnt c-total" id="mob-stat-total">—</span>
-        </div>
-      </div>
-
-      <!-- 篩選 tab -->
-      <div class="sheet-panel" id="mob-tab-filter">
-        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">顯示篩選</div>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-high" checked> <span class="c-high">高/重風險</span></label>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-mid"  checked> <span class="c-mid">中風險</span></label>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-low"  checked> <span class="c-low">低/D級</span></label>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-none"> <span style="color:#6e7681">未健檢樹木</span></label>
-        <hr class="mob-divider">
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-brownrot" checked> <span style="color:#a371f7">褐根病通報</span></label>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-otherdmg"> <span style="color:#6e7681">其他病害通報</span></label>
-        <hr class="mob-divider">
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-protected" checked> <span style="color:#f0a500">列管保護老樹</span></label>
-        <label class="mob-filter-label"><input type="checkbox" id="mob-chk-pit"> <span style="color:#4a9eff">樹穴位置</span></label>
-        <select id="mob-sel-dist" class="mob-filter-select">
-          <option value="">所有行政區</option>
-        </select>
-      </div>
-
-      <!-- 圖例 tab -->
-      <div class="sheet-panel" id="mob-tab-legend">
-        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">風險等級（官方健檢）</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>高/重風險</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>中風險</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>低/D級風險</div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:8px 0">
-        <div class="legend-item"><div class="legend-dot" style="background:#a371f7;border-radius:3px"></div>褐根病通報</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#6e7681;border-radius:3px"></div>其他病害通報</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#f0a500;border-radius:2px"></div>列管保護老樹</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#4a9eff;border-radius:2px"></div>樹穴位置</div>
-        <div style="margin-top:10px;font-size:11px;color:#8b949e;line-height:1.6">
-          資料來源：台北市政府工務局<br>公園路燈工程管理處<br>林業試驗所林木疫情監測系統
-        </div>
-      </div>
-
-      <!-- 路線 tab -->
-      <div class="sheet-panel" id="mob-tab-route">
-        <div class="panel-title" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:10px">◈ ROUTE PLANNER</div>
-        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);opacity:0.7;margin-bottom:5px">出發地</div>
-        <input class="mob-rs-input" id="mob-inp-start" type="text" placeholder="輸入地址或地名" autocomplete="off">
-        <div class="mob-rs-status" id="mob-start-status"></div>
-        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);opacity:0.7;margin-bottom:5px">目的地</div>
-        <input class="mob-rs-input" id="mob-inp-end" type="text" placeholder="輸入地址或地名" autocomplete="off">
-        <div class="mob-rs-status" id="mob-end-status"></div>
-        <div class="mob-rs-mode">
-          <label><input type="radio" name="mob-tmode" value="foot" checked>🚶 步行</label>
-          <label><input type="radio" name="mob-tmode" value="driving">🚗 開車</label>
-          <label><input type="radio" name="mob-tmode" value="bike">🚲 騎車</label>
-        </div>
-        <button class="mob-rs-btn mob-rs-btn-primary" onclick="handleMobRouteSearch()">查詢路線</button>
-        <button class="mob-rs-btn mob-rs-btn-secondary" id="mob-btn-clear-route" onclick="clearMobRoute()" style="display:none">清除路線</button>
-        <div id="mob-route-result"></div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- 3D 模式 FAB（手機版） -->
-  <button id="fab-3d" onclick="toggle3D()">3D</button>
 
 </body>
 </html>
