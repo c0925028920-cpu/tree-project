@@ -1416,7 +1416,7 @@
     updateWeatherForDistrict(this.value);
   });
 
-  // 手機版篩選器 listeners（defer 到 DOMContentLoaded 後，因 mobile-sheet HTML 在 </script> 之後）
+  // 手機版篩選器 listeners（defer 到 DOMContentLoaded 後，因 mobile-sheet HTML 在 script 結束標籤之後）
   window.addEventListener('DOMContentLoaded', () => {
     ['mob-chk-high','mob-chk-mid','mob-chk-low','mob-chk-none',
      'mob-chk-brownrot','mob-chk-protected'].forEach(id => {
