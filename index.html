@@ -1337,12 +1337,13 @@
 
         // 更新統計（桌機 + 手機版）
         const total = counts.high + counts.mid + counts.low;
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
         const setAll = (suffix, h, m, l, n, t) => {
-          document.getElementById(suffix + 'high').textContent  = h.toLocaleString();
-          document.getElementById(suffix + 'mid').textContent   = m.toLocaleString();
-          document.getElementById(suffix + 'low').textContent   = l.toLocaleString();
-          document.getElementById(suffix + 'none').textContent  = n.toLocaleString();
-          document.getElementById(suffix + 'total').textContent = t.toLocaleString();
+          setEl(suffix + 'high',  h.toLocaleString());
+          setEl(suffix + 'mid',   m.toLocaleString());
+          setEl(suffix + 'low',   l.toLocaleString());
+          setEl(suffix + 'none',  n.toLocaleString());
+          setEl(suffix + 'total', t.toLocaleString());
         };
         setAll('cnt-',      counts.high, counts.mid, counts.low, counts.none, total);
         setAll('mob-cnt-',  counts.high, counts.mid, counts.low, counts.none, total);
